@@ -223,6 +223,54 @@ def test_customer_portal_isolation_security(client: TestClient, db_session: Sess
     assert resp.json()["error"]["code"] == "FORBIDDEN"
 
 
+def test_customer_portal_orders_real_fulfillment(client: TestClient, db_session: Session):
+    """Customer views real order fulfillment with line items and warehouse splits."""
+    cust_headers = get_auth_headers(client, "customer@acmecorp.com")
+    resp = client.get("/api/portal/orders", headers=cust_headers)
+    assert resp.status_code == 200
+    orders = resp.json()
+    assert len(orders) >= 1
+    ord1 = next((o for o in orders if o["order_number"] == "ORD-2026-001"), None)
+    assert ord1 is not None
+    assert ord1["status"] == "CONFIRMED"
+    assert len(ord1["lines"]) >= 1
+
+    # Check line items and warehouse splits
+    line1 = next((l for l in ord1["lines"] if l["line_type"] == "ONE_TIME"), None)
+    assert line1 is not None
+    assert line1["product_name"] == "Edge IoT Gateway Server"
+    assert len(line1["fulfillment_splits"]) == 2
+    wh_names = [s["warehouse_name"] for s in line1["fulfillment_splits"]]
+    assert any("Chicago" in (w or "") for w in wh_names)
+    assert any("Reno" in (w or "") for w in wh_names)
+
+
+def test_customer_order_isolation_security(client: TestClient, db_session: Session):
+    """Authoritative backend isolation: Customer Acme cannot retrieve TechNova order."""
+    from app.models.order import Order
+    cust_headers = get_auth_headers(client, "customer@acmecorp.com")
+
+    # Get TechNova order
+    ord2 = db_session.query(Order).filter(Order.order_number == "ORD-2026-002").first()
+    assert ord2 is not None
+
+    # Via /api/orders/{id}
+    resp = client.get(f"/api/orders/{ord2.id}", headers=cust_headers)
+    assert resp.status_code == 403
+    assert resp.json()["error"]["code"] == "FORBIDDEN"
+
+    # Via /api/portal/orders/{id}
+    resp2 = client.get(f"/api/portal/orders/{ord2.id}", headers=cust_headers)
+    assert resp2.status_code == 403
+    assert resp2.json()["error"]["code"] == "FORBIDDEN"
+
+    # Via GET /api/orders list
+    resp_list = client.get("/api/orders", headers=cust_headers)
+    assert resp_list.status_code == 200
+    list_orders = resp_list.json()
+    assert not any(o["order_number"] == "ORD-2026-002" for o in list_orders)
+
+
 # =====================================================================
 # NEGOTIATION TESTS
 # =====================================================================

@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from app.models.customer import Customer
 from app.models.quote import Quote, QuoteLine, QuoteStatus
 from app.models.negotiation import Negotiation
-from app.models.order import Order
+from app.models.order import Order, OrderLine, FulfillmentSplit
 from app.models.billing import Invoice
 from app.models.audit import AuditLog
 from app.models.user import User, Role
@@ -152,8 +152,40 @@ class PortalService:
 
     def get_customer_orders(self, db: Session, current_user: User) -> List[Any]:
         customer = customer_service.get_customer_for_user(db, current_user)
-        orders = db.query(Order).filter(Order.customer_id == customer.id).all()
+        orders = (
+            db.query(Order)
+            .options(
+                joinedload(Order.lines).joinedload(OrderLine.product),
+                joinedload(Order.lines).joinedload(OrderLine.fulfillment_splits).joinedload(FulfillmentSplit.warehouse),
+            )
+            .filter(Order.customer_id == customer.id)
+            .order_by(Order.created_at.desc())
+            .all()
+        )
         return orders
+
+    def get_customer_order_detail(self, db: Session, current_user: User, order_id: int) -> Any:
+        customer = customer_service.get_customer_for_user(db, current_user)
+        order = (
+            db.query(Order)
+            .options(
+                joinedload(Order.lines).joinedload(OrderLine.product),
+                joinedload(Order.lines).joinedload(OrderLine.fulfillment_splits).joinedload(FulfillmentSplit.warehouse),
+            )
+            .filter(Order.id == order_id)
+            .first()
+        )
+        if not order:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "NOT_FOUND", "message": f"Order {order_id} not found"},
+            )
+        if order.customer_id != customer.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "FORBIDDEN", "message": "Access denied to this order"},
+            )
+        return order
 
     def get_customer_invoices(self, db: Session, current_user: User) -> List[Any]:
         customer = customer_service.get_customer_for_user(db, current_user)

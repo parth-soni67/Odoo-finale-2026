@@ -33,8 +33,10 @@ def get_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    # In a real app, we might filter by customer or sales rep. 
-    # For MVP, we return all or subset based on roles.
+    if current_user.role == Role.CUSTOMER:
+        from app.services.customer_service import customer_service
+        customer = customer_service.get_customer_for_user(db, current_user)
+        return order_service.get_orders_for_customer(db, customer.id)
     return order_service.get_orders(db)
 
 @router.get("/{order_id}", response_model=OrderResponse)
@@ -47,6 +49,17 @@ def get_order(
     if not order:
         from fastapi import HTTPException
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "NOT_FOUND", "message": "Order not found"})
+
+    if current_user.role == Role.CUSTOMER:
+        from app.services.customer_service import customer_service
+        customer = customer_service.get_customer_for_user(db, current_user)
+        if order.customer_id != customer.id:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "FORBIDDEN", "message": "Access denied to this order"}
+            )
+
     return order
 
 @router.post("/{order_id}/fulfillment/suggest")

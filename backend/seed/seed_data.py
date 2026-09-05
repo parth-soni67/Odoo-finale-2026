@@ -14,6 +14,7 @@ from app.models.warehouse import Warehouse, Inventory
 from app.models.billing import SubscriptionPlan
 from app.models.quote import Quote, QuoteLine, QuoteStatus, LineType
 from app.models.negotiation import Negotiation, NegotiationStatus
+from app.models.order import Order, OrderLine, OrderStatus, FulfillmentSplit, FulfillmentSplitStatus
 
 # Common development password for all seed users
 DEMO_PASSWORD = "Demo1234!"
@@ -388,6 +389,101 @@ def seed_database(db: Session) -> None:
                 db.add(q3_line)
                 db.commit()
                 print(f"Created demo quote: {q3.quote_number} (Global Logistics)")
+
+    # 10. Seed Demo Orders with Multi-Warehouse Fulfillment
+    wh_a = db.query(Warehouse).filter(Warehouse.name.ilike("%Chicago%")).first()
+    wh_b = db.query(Warehouse).filter(Warehouse.name.ilike("%Reno%")).first()
+
+    if acme and iot_prod:
+        ord1 = db.query(Order).filter(Order.order_number == "ORD-2026-001").first()
+        if not ord1:
+            q1_obj = db.query(Quote).filter(Quote.quote_number == "Q-2026-001").first()
+            ord1 = Order(
+                order_number="ORD-2026-001",
+                quote_id=q1_obj.id if q1_obj else None,
+                customer_id=acme.id,
+                status=OrderStatus.CONFIRMED,
+                total_amount=2968.0,
+            )
+            db.add(ord1)
+            db.flush()
+
+            # Physical item line with multi-warehouse split
+            line1 = OrderLine(
+                order_id=ord1.id,
+                product_id=iot_prod.id,
+                quantity=5,
+                unit_price=1200.0,
+                discount_percent=8.0,
+                line_total=5520.0,
+                line_type=LineType.ONE_TIME,
+            )
+            # Service line
+            line2 = OrderLine(
+                order_id=ord1.id,
+                product_id=supp_prod.id if supp_prod else iot_prod.id,
+                quantity=1,
+                unit_price=800.0,
+                discount_percent=5.0,
+                line_total=760.0,
+                line_type=LineType.RECURRING,
+            )
+            db.add_all([line1, line2])
+            db.flush()
+
+            # Splits for Line 1: 3 units Chicago, 2 units Reno
+            if wh_a and wh_b:
+                split1 = FulfillmentSplit(
+                    order_line_id=line1.id,
+                    warehouse_id=wh_a.id,
+                    quantity_allocated=3,
+                    status=FulfillmentSplitStatus.ALLOCATED,
+                )
+                split2 = FulfillmentSplit(
+                    order_line_id=line1.id,
+                    warehouse_id=wh_b.id,
+                    quantity_allocated=2,
+                    status=FulfillmentSplitStatus.ALLOCATED,
+                )
+                db.add_all([split1, split2])
+
+            db.commit()
+            print(f"Created demo order: {ord1.order_number} (Acme Corp - Multi-Warehouse Confirmed)")
+
+    if technova and iot_prod and wh_a:
+        ord2 = db.query(Order).filter(Order.order_number == "ORD-2026-002").first()
+        if not ord2:
+            ord2 = Order(
+                order_number="ORD-2026-002",
+                customer_id=technova.id,
+                status=OrderStatus.PROCESSING,
+                total_amount=9625.0,
+            )
+            db.add(ord2)
+            db.flush()
+
+            # 10 units requested, 8 allocated in Chicago, 2 backordered
+            line_tech = OrderLine(
+                order_id=ord2.id,
+                product_id=iot_prod.id,
+                quantity=10,
+                unit_price=1200.0,
+                discount_percent=20.0,
+                line_total=9600.0,
+                line_type=LineType.ONE_TIME,
+            )
+            db.add(line_tech)
+            db.flush()
+
+            split_tech = FulfillmentSplit(
+                order_line_id=line_tech.id,
+                warehouse_id=wh_a.id,
+                quantity_allocated=8,
+                status=FulfillmentSplitStatus.ALLOCATED,
+            )
+            db.add(split_tech)
+            db.commit()
+            print(f"Created demo order: {ord2.order_number} (TechNova - Partial Fulfillment & Backorder)")
 
     print("--- Database Seeding Completed Successfully ---")
 

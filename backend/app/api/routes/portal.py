@@ -6,6 +6,7 @@ from app.core.dependencies import get_current_active_user, require_roles
 from app.models.user import User, Role
 from app.schemas.customer import CustomerResponse
 from app.schemas.negotiation import NegotiationCreate, NegotiationResponse
+from app.schemas.order import OrderResponse
 from app.services.portal_service import portal_service
 from app.services.negotiation_service import negotiation_service
 
@@ -80,23 +81,23 @@ def confirm_quote(
     return portal_service.confirm_quote(db, current_user, quote_id=quote_id)
 
 
-@router.get("/orders")
+@router.get("/orders", response_model=List[OrderResponse])
 def get_portal_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(Role.CUSTOMER, Role.ADMIN)),
 ):
     """Retrieve fulfillment and order tracking for the customer."""
-    orders = portal_service.get_customer_orders(db, current_user)
-    results = []
-    for o in orders:
-        results.append({
-            "id": o.id,
-            "order_number": o.order_number,
-            "status": o.status.value if hasattr(o.status, "value") else str(o.status),
-            "total_amount": o.total_amount,
-            "created_at": o.created_at.isoformat() if o.created_at else None,
-        })
-    return results
+    return portal_service.get_customer_orders(db, current_user)
+
+
+@router.get("/orders/{order_id}", response_model=OrderResponse)
+def get_portal_order_detail(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.CUSTOMER, Role.ADMIN)),
+):
+    """Retrieve detailed fulfillment splits and warehouse allocation for a customer order."""
+    return portal_service.get_customer_order_detail(db, current_user, order_id=order_id)
 
 
 @router.get("/invoices")

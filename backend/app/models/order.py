@@ -58,6 +58,14 @@ class OrderLine(Base):
     product = relationship("Product", back_populates="order_lines")
     fulfillment_splits = relationship("FulfillmentSplit", back_populates="order_line", cascade="all, delete-orphan")
 
+    @property
+    def product_name(self):
+        return self.product.name if self.product else None
+
+    @property
+    def product_sku(self):
+        return self.product.sku if self.product else None
+
 
 class FulfillmentSplit(Base):
     __tablename__ = "fulfillment_splits"
@@ -71,3 +79,7 @@ class FulfillmentSplit(Base):
     # Relationships
     order_line = relationship("OrderLine", back_populates="fulfillment_splits")
     warehouse = relationship("Warehouse", back_populates="fulfillment_splits")
+
+    @property
+    def warehouse_name(self):
+        return self.warehouse.name if self.warehouse else None

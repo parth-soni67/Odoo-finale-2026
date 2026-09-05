@@ -10,6 +10,7 @@ class FulfillmentSplitResponse(BaseModel):
     id: int
     order_line_id: int
     warehouse_id: int
+    warehouse_name: Optional[str] = None
     quantity_allocated: int
     status: FulfillmentSplitStatus
 
@@ -20,6 +21,8 @@ class OrderLineResponse(BaseModel):
     id: int
     order_id: int
     product_id: int
+    product_name: Optional[str] = None
+    product_sku: Optional[str] = None
     quantity: int
     unit_price: float
     discount_percent: float

@@ -63,4 +63,7 @@ class OrderService:
     def get_orders(self, db: Session) -> List[Order]:
         return db.query(Order).all()
 
+    def get_orders_for_customer(self, db: Session, customer_id: int) -> List[Order]:
+        return db.query(Order).filter(Order.customer_id == customer_id).order_by(Order.created_at.desc()).all()
+
 order_service = OrderService()

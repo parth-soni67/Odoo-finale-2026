@@ -11,7 +11,90 @@ import {
   ArrowRight,
   Send,
   AlertCircle,
+  RotateCcw,
 } from "lucide-react";
+
+function getCustomerOrderStatus(order) {
+  if (!order) return "CONFIRMED";
+  const status = (order.status || "").toUpperCase();
+  const physicalLines = (order.lines || []).filter(
+    (l) => (l.line_type || "ONE_TIME").toUpperCase() === "ONE_TIME"
+  );
+  const totalPhysicalQty = physicalLines.reduce((sum, l) => sum + (l.quantity || 0), 0);
+  const totalAllocatedQty = (order.lines || []).reduce((sum, l) => {
+    return sum + (l.fulfillment_splits || []).reduce((sSum, sp) => sSum + (sp.quantity_allocated || 0), 0);
+  }, 0);
+
+  if (status === "FULFILLED") return "FULFILLED";
+  if (status === "CANCELLED") return "CANCELLED";
+  if (totalPhysicalQty > 0 && totalAllocatedQty > 0 && totalAllocatedQty < totalPhysicalQty) {
+    return "PARTIALLY FULFILLED";
+  }
+  if (totalPhysicalQty > 0 && totalAllocatedQty >= totalPhysicalQty) {
+    return "FULFILLED";
+  }
+  return status || "CONFIRMED";
+}
+
+function getStatusBadgeClass(status) {
+  switch (status) {
+    case "FULFILLED":
+      return "badge-healthy";
+    case "CONFIRMED":
+    case "PROCESSING":
+      return "badge-info";
+    case "PARTIALLY FULFILLED":
+      return "badge-medium";
+    case "CANCELLED":
+      return "badge-high";
+    default:
+      return "badge-neutral";
+  }
+}
+
+function formatAsciiProgress(percent) {
+  const totalBlocks = 15;
+  const filled = Math.min(totalBlocks, Math.max(0, Math.round((percent / 100) * totalBlocks)));
+  const empty = totalBlocks - filled;
+  return "█".repeat(filled) + "░".repeat(empty);
+}
+
+function getSplitStatusLabel(splitStatus) {
+  const s = (splitStatus || "").toUpperCase();
+  switch (s) {
+    case "ALLOCATED":
+      return "Allocated";
+    case "PICKED":
+      return "Picked";
+    case "SHIPPED":
+      return "Fulfilled";
+    case "BACKORDERED":
+      return "Backordered";
+    default:
+      return splitStatus || "Allocated";
+  }
+}
+
+function getItemStatus(line, orderStatus) {
+  const isRecurring = (line.line_type || "").toUpperCase() === "RECURRING";
+  if (isRecurring) {
+    return { label: "Active", badge: "badge-healthy" };
+  }
+  const allocated = (line.fulfillment_splits || []).reduce(
+    (sum, sp) => sum + (sp.quantity_allocated || 0),
+    0
+  );
+  if (orderStatus === "FULFILLED" || (allocated >= line.quantity && line.quantity > 0)) {
+    return { label: "Fulfilled", badge: "badge-healthy" };
+  }
+  if (allocated > 0) {
+    return { label: `Partially Fulfilled (${allocated}/${line.quantity})`, badge: "badge-medium" };
+  }
+  if (orderStatus === "CONFIRMED") {
+    return { label: "Confirmed", badge: "badge-info" };
+  }
+  return { label: "Processing", badge: "badge-info" };
+}
 
 export function CustomerPortal({ user, onNotify }) {
   const [profile, setProfile] = useState(null);
@@ -19,6 +102,12 @@ export function CustomerPortal({ user, onNotify }) {
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [activeTab, setActiveTab] = useState("quotes"); // quotes, orders, billing, profile
   const [loading, setLoading] = useState(true);
+
+  // Orders & Fulfillment State
+  const [orders, setOrders] = useState([]);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState(null);
 
   // Negotiation Modal
   const [isNegModalOpen, setIsNegModalOpen] = useState(false);
@@ -28,6 +117,7 @@ export function CustomerPortal({ user, onNotify }) {
 
   useEffect(() => {
     loadPortalData();
+    loadOrders();
   }, []);
 
   async function loadPortalData() {
@@ -49,6 +139,47 @@ export function CustomerPortal({ user, onNotify }) {
     }
   }
 
+  async function loadOrders() {
+    setOrdersLoading(true);
+    setOrdersError(null);
+    try {
+      const ordersData = await api.getPortalOrders();
+      const list = ordersData || [];
+      setOrders(list);
+      if (list.length > 0) {
+        // Auto-select first order if none selected or if selection changed
+        setSelectedOrder((prev) => {
+          const currentId = prev?.id;
+          const matching = list.find((o) => o.id === currentId);
+          const toSelect = matching || list[0];
+          loadOrderDetail(toSelect.id);
+          return toSelect;
+        });
+      } else {
+        setSelectedOrder(null);
+      }
+    } catch (err) {
+      setOrdersError("Unable to load your order information.");
+    } finally {
+      setOrdersLoading(false);
+    }
+  }
+
+  async function loadOrderDetail(orderId) {
+    try {
+      const detail = await api.getPortalOrderDetail(orderId);
+      if (detail) {
+        setSelectedOrder(detail);
+      }
+    } catch (err) {
+      setOrders((currentOrders) => {
+        const found = currentOrders.find((o) => o.id === orderId);
+        if (found) setSelectedOrder(found);
+        return currentOrders;
+      });
+    }
+  }
+
   async function loadQuoteDetail(quoteId) {
     try {
       const detail = await api.getPortalQuoteDetail(quoteId);
@@ -63,6 +194,7 @@ export function CustomerPortal({ user, onNotify }) {
       const res = await api.confirmQuote(quoteId);
       onNotify(res.message || "Quote accepted successfully!", "success");
       loadPortalData();
+      loadOrders();
       if (selectedQuote?.id === quoteId) {
         loadQuoteDetail(quoteId);
       }
@@ -134,9 +266,14 @@ export function CustomerPortal({ user, onNotify }) {
         </button>
         <button
           className={`nav-item ${activeTab === "orders" ? "active" : ""}`}
-          onClick={() => setActiveTab("orders")}
+          onClick={() => {
+            setActiveTab("orders");
+            if (orders.length === 0 && !ordersLoading) {
+              loadOrders();
+            }
+          }}
         >
-          <Package size={16} /> Orders & Fulfillment
+          <Package size={16} /> Orders & Fulfillment {orders.length > 0 ? `(${orders.length})` : ""}
         </button>
         <button
           className={`nav-item ${activeTab === "billing" ? "active" : ""}`}
@@ -330,27 +467,316 @@ export function CustomerPortal({ user, onNotify }) {
         </div>
       )}
 
-      {/* Tab: Orders Placeholder */}
+      {/* Tab: Orders & Fulfillment */}
       {activeTab === "orders" && (
-        <div className="card" style={{ textAlign: "center", padding: "3rem 1.5rem" }}>
-          <Package size={42} color="var(--primary)" style={{ marginBottom: "1rem" }} />
-          <h3 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "0.5rem" }}>Order Fulfillment & Tracking</h3>
-          <p style={{ color: "var(--text-secondary)", maxWidth: "500px", margin: "0 auto 1.5rem auto", fontSize: "0.9rem" }}>
-            Warehouse allocations, tracking IDs, and fulfillment split shipments will populate here once orders are confirmed and released by Operations.
-          </p>
-          <span className="badge badge-info">Person 3 Integration Ready</span>
+        <div>
+          {ordersLoading ? (
+            <div className="card" style={{ textAlign: "center", padding: "3rem 1.5rem" }}>
+              <Clock size={36} color="var(--primary)" style={{ marginBottom: "1rem" }} />
+              <h3 style={{ fontSize: "1.15rem", fontWeight: 600, color: "var(--text-secondary)" }}>
+                Loading your orders...
+              </h3>
+            </div>
+          ) : ordersError ? (
+            <div className="card" style={{ textAlign: "center", padding: "3rem 1.5rem" }}>
+              <AlertCircle size={40} color="var(--status-high)" style={{ marginBottom: "1rem" }} />
+              <h3 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "0.5rem", color: "var(--text-primary)" }}>
+                Unable to load your order information.
+              </h3>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
+                Please check your network connection or try again.
+              </p>
+              <button className="btn btn-secondary" onClick={loadOrders}>
+                <RotateCcw size={14} /> Retry
+              </button>
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="card" style={{ textAlign: "center", padding: "3.5rem 1.5rem" }}>
+              <Package size={48} color="var(--primary)" style={{ marginBottom: "1rem" }} />
+              <h3 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+                Order Fulfillment & Tracking
+              </h3>
+              <p style={{ color: "var(--text-secondary)", maxWidth: "520px", margin: "0 auto 0.5rem auto", fontSize: "0.95rem" }}>
+                Your confirmed orders and fulfillment updates will appear here.
+              </p>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", margin: 0 }}>
+                No active orders yet.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: "1.5rem", alignItems: "start" }}>
+              {/* Orders List / Cards */}
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-title">
+                    <Package size={18} /> My Orders ({orders.length})
+                  </div>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={loadOrders}
+                    title="Refresh Orders"
+                  >
+                    <RotateCcw size={13} />
+                  </button>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  {orders.map((ord) => {
+                    const isSelected = selectedOrder?.id === ord.id;
+                    const dispStatus = getCustomerOrderStatus(ord);
+                    const badgeClass = getStatusBadgeClass(dispStatus);
+                    const itemCount = (ord.lines || []).length;
+                    return (
+                      <div
+                        key={ord.id}
+                        onClick={() => loadOrderDetail(ord.id)}
+                        style={{
+                          padding: "1rem",
+                          borderRadius: "var(--radius-md)",
+                          background: isSelected ? "var(--bg-surface-elevated)" : "var(--bg-surface)",
+                          border: isSelected ? "1px solid var(--primary)" : "1px solid var(--border-subtle)",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
+                          <span style={{ fontWeight: 700, color: "#fff" }}>Order #{ord.order_number}</span>
+                          <span className={`badge ${badgeClass}`}>{dispStatus}</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-secondary)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
+                          <span>{itemCount} {itemCount === 1 ? "item" : "items"}</span>
+                          <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>
+                            ${(ord.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "var(--primary)", fontSize: "0.8rem", fontWeight: 600 }}>
+                          View Details <ArrowRight size={13} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Selected Order Fulfillment & Tracking View */}
+              {selectedOrder ? (
+                (() => {
+                  const currentStatus = getCustomerOrderStatus(selectedOrder);
+                  const statusBadge = getStatusBadgeClass(currentStatus);
+                  const lines = selectedOrder.lines || [];
+                  const physicalLines = lines.filter((l) => (l.line_type || "ONE_TIME").toUpperCase() === "ONE_TIME");
+                  const totalPhysicalQty = physicalLines.reduce((sum, l) => sum + (l.quantity || 0), 0);
+
+                  // Real splits aggregation
+                  const allSplits = [];
+                  lines.forEach((line) => {
+                    (line.fulfillment_splits || []).forEach((split) => {
+                      allSplits.push({
+                        ...split,
+                        product_name: line.product_name || `Product #${line.product_id}`,
+                      });
+                    });
+                  });
+
+                  const totalAllocatedQty = allSplits.reduce((sum, sp) => sum + (sp.quantity_allocated || 0), 0);
+                  const backorderedQty = Math.max(0, totalPhysicalQty - totalAllocatedQty);
+                  const fulfillmentPercent = totalPhysicalQty > 0
+                    ? Math.min(100, Math.round((totalAllocatedQty / totalPhysicalQty) * 100))
+                    : (selectedOrder.status === "FULFILLED" || selectedOrder.status === "CONFIRMED" ? 100 : 0);
+
+                  const lastUpdated = selectedOrder.updated_at
+                    ? new Date(selectedOrder.updated_at).toLocaleString()
+                    : selectedOrder.created_at
+                    ? new Date(selectedOrder.created_at).toLocaleString()
+                    : "Not available";
+
+                  return (
+                    <div className="card">
+                      <div className="card-header" style={{ marginBottom: "1.25rem", borderBottom: "1px solid var(--border-subtle)", paddingBottom: "1rem" }}>
+                        <div>
+                          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>
+                            Order Fulfillment & Tracking
+                          </div>
+                          <h2 style={{ fontSize: "1.4rem", fontWeight: 800, color: "#fff", display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.25rem" }}>
+                            Order #{selectedOrder.order_number}
+                            <span className={`badge ${statusBadge}`} style={{ fontSize: "0.8rem", padding: "0.25rem 0.6rem" }}>
+                              {currentStatus}
+                            </span>
+                          </h2>
+                        </div>
+                      </div>
+
+                      {/* Items Section */}
+                      <div style={{ marginBottom: "1.75rem" }}>
+                        <h4 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.75rem", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                          Items
+                        </h4>
+                        <div className="table-container" style={{ border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)" }}>
+                          <table className="data-table">
+                            <thead>
+                              <tr>
+                                <th>Product</th>
+                                <th style={{ textAlign: "center", width: "80px" }}>Qty</th>
+                                <th style={{ textAlign: "right", width: "160px" }}>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {lines.length === 0 ? (
+                                <tr>
+                                  <td colSpan={3} style={{ textAlign: "center", color: "var(--text-muted)", padding: "1.5rem" }}>
+                                    No items found for this order.
+                                  </td>
+                                </tr>
+                              ) : (
+                                lines.map((line) => {
+                                  const itemStat = getItemStatus(line, selectedOrder.status);
+                                  return (
+                                    <tr key={line.id}>
+                                      <td>
+                                        <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                                          {line.product_name || `Product #${line.product_id}`}
+                                        </div>
+                                        {line.product_sku && (
+                                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                                            SKU: {line.product_sku}
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td style={{ textAlign: "center", fontWeight: 700 }}>
+                                        {line.quantity}
+                                      </td>
+                                      <td style={{ textAlign: "right" }}>
+                                        <span className={`badge ${itemStat.badge}`}>
+                                          {itemStat.label}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Warehouse Allocation Section */}
+                      <div style={{ marginBottom: "1.75rem" }}>
+                        <h4 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.75rem", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                          Warehouse Allocation
+                        </h4>
+                        {allSplits.length === 0 ? (
+                          <div style={{ padding: "1rem", background: "var(--bg-surface-elevated)", borderRadius: "var(--radius-sm)", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+                            No warehouse allocations recorded yet.
+                          </div>
+                        ) : (
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.85rem", marginBottom: "1rem" }}>
+                            {allSplits.map((split, idx) => (
+                              <div
+                                key={split.id || idx}
+                                style={{
+                                  padding: "1rem",
+                                  background: "var(--bg-surface-elevated)",
+                                  borderRadius: "var(--radius-md)",
+                                  border: "1px solid var(--border-subtle)",
+                                }}
+                              >
+                                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#fff", marginBottom: "0.35rem" }}>
+                                  {split.warehouse_name || `Warehouse #${split.warehouse_id}`}
+                                </div>
+                                <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "0.5rem" }}>
+                                  <strong>{split.quantity_allocated} units</strong> allocated
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem" }}>
+                                  <span style={{ color: "var(--text-muted)" }}>Status:</span>
+                                  <span className="badge badge-info">{getSplitStatusLabel(split.status)}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Backorder */}
+                        <div
+                          style={{
+                            marginTop: "0.75rem",
+                            padding: "0.85rem 1rem",
+                            borderRadius: "var(--radius-md)",
+                            background: backorderedQty > 0 ? "rgba(239, 68, 68, 0.1)" : "var(--bg-surface-elevated)",
+                            border: backorderedQty > 0 ? "1px solid rgba(239, 68, 68, 0.3)" : "1px solid var(--border-subtle)",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <span style={{ fontSize: "0.9rem", fontWeight: 600, color: backorderedQty > 0 ? "var(--status-high)" : "var(--text-secondary)" }}>
+                            Backorder
+                          </span>
+                          <span style={{ fontSize: "0.9rem", fontWeight: 700, color: backorderedQty > 0 ? "var(--status-high)" : "var(--status-healthy)" }}>
+                            {backorderedQty > 0 ? `${backorderedQty} units remaining` : "0 units remaining"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Fulfillment Progress */}
+                      <div
+                        style={{
+                          marginBottom: "1.5rem",
+                          padding: "1.25rem",
+                          background: "var(--bg-surface-elevated)",
+                          borderRadius: "var(--radius-md)",
+                          border: "1px solid var(--border-subtle)",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                          <span style={{ fontSize: "0.9rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--text-secondary)" }}>
+                            Fulfillment Progress
+                          </span>
+                          <span style={{ fontSize: "1.1rem", fontWeight: 800, color: fulfillmentPercent === 100 ? "var(--status-healthy)" : "var(--primary)" }}>
+                            {fulfillmentPercent}%
+                          </span>
+                        </div>
+                        <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: "var(--radius-full)", height: "10px", overflow: "hidden", marginBottom: "0.5rem" }}>
+                          <div
+                            style={{
+                              width: `${fulfillmentPercent}%`,
+                              background: fulfillmentPercent === 100 ? "var(--status-healthy)" : "linear-gradient(90deg, var(--primary) 0%, #6366f1 100%)",
+                              height: "100%",
+                              borderRadius: "var(--radius-full)",
+                              transition: "width 0.4s ease",
+                            }}
+                          />
+                        </div>
+                        <div style={{ fontFamily: "monospace", fontSize: "0.85rem", color: "var(--primary)", letterSpacing: "0.05em" }}>
+                          {formatAsciiProgress(fulfillmentPercent)} {fulfillmentPercent}%
+                        </div>
+                      </div>
+
+                      {/* Last Updated */}
+                      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", borderTop: "1px solid var(--border-subtle)", paddingTop: "0.75rem", display: "flex", justifyContent: "space-between" }}>
+                        <span>Last updated: {lastUpdated}</span>
+                        <span>Customer Account: <strong>{profile?.company_name || "Authorized Customer"}</strong></span>
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="card" style={{ textAlign: "center", padding: "3rem", color: "var(--text-muted)" }}>
+                  Select an order from the list to view fulfillment details.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Tab: Billing Placeholder */}
+      {/* Tab: Billing */}
       {activeTab === "billing" && (
         <div className="card" style={{ textAlign: "center", padding: "3rem 1.5rem" }}>
           <Receipt size={42} color="var(--status-healthy)" style={{ marginBottom: "1rem" }} />
           <h3 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "0.5rem" }}>Billing & Invoices</h3>
           <p style={{ color: "var(--text-secondary)", maxWidth: "500px", margin: "0 auto 1.5rem auto", fontSize: "0.9rem" }}>
-            Hybrid billing invoices (one-time license hardware + recurring subscriptions) and simulated payment receipts will be accessible here.
+            Hybrid billing invoices (one-time license hardware + recurring subscriptions) and payment receipts will be accessible here upon order processing.
           </p>
-          <span className="badge badge-info">Person 3 Integration Ready</span>
+          <span className="badge badge-neutral">Invoices Available Upon Order Finalization</span>
         </div>
       )}
 

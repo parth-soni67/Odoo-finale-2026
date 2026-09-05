@@ -137,6 +137,18 @@ export const api = {
     return request("/portal/orders");
   },
 
+  async getPortalOrderDetail(id) {
+    return request(`/portal/orders/${id}`);
+  },
+
+  async getOrders() {
+    return request("/orders");
+  },
+
+  async getOrder(id) {
+    return request(`/orders/${id}`);
+  },
+
   async getPortalInvoices() {
     return request("/portal/invoices");
   },
