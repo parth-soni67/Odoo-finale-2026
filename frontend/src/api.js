@@ -58,6 +58,17 @@ export const api = {
     return res;
   },
 
+  async signup(fullName, email, password) {
+    return request("/auth/signup", {
+      method: "POST",
+      body: JSON.stringify({
+        full_name: fullName,
+        email: email,
+        password: password,
+      }),
+    });
+  },
+
   async getMe() {
     return request("/auth/me");
   },

@@ -2,11 +2,46 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
-from app.models.user import User
-from app.schemas.auth import LoginRequest, TokenResponse, UserResponse
+from app.models.user import User, Role
+from app.schemas.auth import LoginRequest, TokenResponse, UserResponse, UserCreate
 from app.services.auth_service import auth_service
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+@router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def signup(
+    signup_data: UserCreate,
+    db: Session = Depends(get_db)
+) -> UserResponse:
+    """Registers a new user account (public signup strictly assigns CUSTOMER role)."""
+    existing_user = auth_service.get_user_by_email(db, signup_data.email)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "EMAIL_EXISTS", "message": "An account with this email already exists."}
+        )
+
+    # Prevent privilege escalation: public signup always creates CUSTOMER
+    signup_data.role = Role.CUSTOMER
+    user = auth_service.create_user(db, signup_data)
+
+    # Ensure corresponding Customer profile exists for portal integration
+    from app.models.customer import Customer, CustomerTier
+    existing_cust = db.query(Customer).filter(Customer.email == user.email).first()
+    if not existing_cust:
+        company_name = f"{user.full_name}'s Company" if user.full_name else "Customer Company"
+        new_cust = Customer(
+            company_name=company_name,
+            contact_name=user.full_name,
+            email=user.email,
+            tier=CustomerTier.STANDARD,
+            discount_ceiling=10.0,
+        )
+        db.add(new_cust)
+        db.commit()
+
+    return UserResponse.model_validate(user)
 
 
 @router.post("/login", response_model=TokenResponse)

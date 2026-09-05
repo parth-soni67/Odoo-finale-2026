@@ -117,9 +117,19 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Manual Login state
-  const [loginEmail, setLoginEmail] = useState("salesrep@dealflow360.internal");
-  const [loginPassword, setLoginPassword] = useState("Demo1234!");
+  // Auth Mode: "login" or "signup"
+  const [authMode, setAuthMode] = useState("login");
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+
+  // Login Form State
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+
+  // Signup Form State
+  const [signupFullName, setSignupFullName] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
 
   useEffect(() => {
     initAuth();
@@ -150,11 +160,10 @@ export default function App() {
         applyInitialRoute(me, route);
       } catch {
         api.logout();
-        loginAs("salesrep@dealflow360.internal", route);
+        setCurrentUser(null);
       }
     } else {
-      // Default initial login as Sales Rep to highlight the primary new workflow
-      loginAs("salesrep@dealflow360.internal", route);
+      setCurrentUser(null);
     }
     setAuthLoading(false);
   }
@@ -197,6 +206,8 @@ export default function App() {
   function handleLogout() {
     api.logout();
     setCurrentUser(null);
+    setAuthMode("login");
+    setLoginPassword("");
     notify("Logged out", "info");
   }
 
@@ -206,6 +217,86 @@ export default function App() {
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
+  }
+
+  function handleLoginSubmit(e) {
+    e.preventDefault();
+    if (!loginEmail.trim()) {
+      notify("Email address is required.", "error");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(loginEmail.trim())) {
+      notify("Please enter a valid email address.", "error");
+      return;
+    }
+    if (!loginPassword) {
+      notify("Password is required.", "error");
+      return;
+    }
+
+    setAuthSubmitting(true);
+    api
+      .login(loginEmail.trim(), loginPassword)
+      .then((res) => {
+        setCurrentUser(res.user);
+        const def = ROLE_DEFAULT_TAB[res.user.role] || "portal";
+        navigateTo(def);
+        notify(`Signed in as ${res.user.full_name}`, "success");
+      })
+      .catch((err) => {
+        let msg = err.message;
+        if (msg.includes("INVALID_CREDENTIALS") || msg.toLowerCase().includes("invalid")) {
+          msg = "Invalid email or password.";
+        }
+        notify(msg, "error");
+      })
+      .finally(() => setAuthSubmitting(false));
+  }
+
+  function handleSignupSubmit(e) {
+    e.preventDefault();
+    if (!signupFullName.trim()) {
+      notify("Full Name is required.", "error");
+      return;
+    }
+    if (!signupEmail.trim()) {
+      notify("Email address is required.", "error");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(signupEmail.trim())) {
+      notify("Please enter a valid email address.", "error");
+      return;
+    }
+    if (!signupPassword) {
+      notify("Password is required.", "error");
+      return;
+    }
+    if (signupPassword !== signupConfirmPassword) {
+      notify("Passwords do not match.", "error");
+      return;
+    }
+
+    setAuthSubmitting(true);
+    api
+      .signup(signupFullName.trim(), signupEmail.trim(), signupPassword)
+      .then(() => {
+        notify("Account created successfully.", "success");
+        setLoginEmail(signupEmail.trim());
+        setLoginPassword("");
+        setAuthMode("login");
+      })
+      .catch((err) => {
+        let msg = err.message;
+        if (msg.includes("EMAIL_EXISTS") || msg.toLowerCase().includes("already exists")) {
+          msg = "An account with this email already exists.";
+        } else if (!msg || msg.includes("500") || msg.includes("Failed to fetch")) {
+          msg = "Unable to create your account. Please try again.";
+        }
+        notify(msg, "error");
+      })
+      .finally(() => setAuthSubmitting(false));
   }
 
   if (authLoading) {
@@ -237,8 +328,12 @@ export default function App() {
         <div className="header-inner">
           <div
             className="brand"
-            onClick={() => navigateTo(ROLE_DEFAULT_TAB[currentUser?.role] || "portal")}
-            style={{ cursor: "pointer" }}
+            onClick={() => {
+              if (currentUser) {
+                navigateTo(ROLE_DEFAULT_TAB[currentUser.role] || "portal");
+              }
+            }}
+            style={{ cursor: currentUser ? "pointer" : "default" }}
           >
             <Activity size={24} color="var(--primary)" />
             <span>
@@ -268,7 +363,7 @@ export default function App() {
 
           {/* Demo Persona Switcher & User Status */}
           <div className="user-controls">
-            <div className="persona-switcher" title="Instantly switch authentication persona for judge demo">
+            <div className="persona-switcher" title="Quickly login using pre-seeded demo accounts">
               <span
                 style={{
                   fontSize: "0.75rem",
@@ -277,7 +372,7 @@ export default function App() {
                   paddingLeft: "0.2rem",
                 }}
               >
-                ROLE SWITCHER:
+                DEMO PERSONAS:
               </span>
               {DEMO_PERSONAS.map((p) => {
                 const isActive = currentUser?.email === p.email;
@@ -296,14 +391,14 @@ export default function App() {
             {currentUser && (
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                 <span className="badge badge-neutral" style={{ fontSize: "0.75rem" }}>
-                  <UserCheck size={12} /> {currentUser.role}
+                  <UserCheck size={12} /> AUTHENTICATED: {currentUser.role}
                 </span>
                 <button
                   className="btn btn-secondary btn-sm"
                   onClick={handleLogout}
                   title="Logout"
                 >
-                  <LogOut size={13} />
+                  <LogOut size={13} /> Logout
                 </button>
               </div>
             )}
@@ -314,56 +409,183 @@ export default function App() {
       {/* Main Content Area */}
       <main className="main-content">
         {!currentUser ? (
-          <div className="card" style={{ maxWidth: "420px", margin: "4rem auto" }}>
-            <h2 style={{ fontSize: "1.3rem", fontWeight: 800, marginBottom: "0.5rem" }}>
-              Sign In to DealFlow360
-            </h2>
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginBottom: "1.5rem" }}>
-              Select a persona from the top bar or enter credentials below.
-            </p>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                api
-                  .login(loginEmail, loginPassword)
-                  .then((res) => {
-                    setCurrentUser(res.user);
-                    const def = ROLE_DEFAULT_TAB[res.user.role] || "portal";
-                    navigateTo(def);
-                    notify(`Signed in as ${res.user.full_name}`, "success");
-                  })
-                  .catch((err) => notify("Login failed: " + err.message, "error"));
-              }}
-            >
-              <div className="form-group">
-                <label className="form-label">Email Address</label>
-                <input
-                  type="email"
-                  className="form-input"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  required
-                />
+          authMode === "login" ? (
+            /* Sign In Page */
+            <div className="card" style={{ maxWidth: "440px", margin: "3.5rem auto", padding: "2.25rem 2rem" }}>
+              <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
+                <Activity size={36} color="var(--primary)" style={{ margin: "0 auto 0.5rem auto" }} />
+                <h2 style={{ fontSize: "1.45rem", fontWeight: 800, color: "var(--text-primary)" }}>
+                  Sign In to DealFlow360
+                </h2>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", marginTop: "0.35rem" }}>
+                  Enter your email and password to access your authorized workspace.
+                </p>
               </div>
-              <div className="form-group">
-                <label className="form-label">Password</label>
-                <input
-                  type="password"
-                  className="form-input"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                style={{ width: "100%", marginTop: "0.5rem" }}
+
+              <form onSubmit={handleLoginSubmit}>
+                <div className="form-group">
+                  <label className="form-label">Email Address</label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    placeholder="name@company.com"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    autoComplete="email"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Password</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="••••••••"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: "100%", marginTop: "0.75rem" }}
+                  disabled={authSubmitting}
+                >
+                  {authSubmitting ? "Signing In..." : "Sign In"}
+                </button>
+              </form>
+
+              <div
+                style={{
+                  marginTop: "1.75rem",
+                  paddingTop: "1.25rem",
+                  borderTop: "1px solid var(--border-subtle)",
+                  textAlign: "center",
+                  fontSize: "0.9rem",
+                  color: "var(--text-secondary)",
+                }}
               >
-                Sign In
-              </button>
-            </form>
-          </div>
+                Don't have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("signup");
+                    setSignupFullName("");
+                    setSignupEmail("");
+                    setSignupPassword("");
+                    setSignupConfirmPassword("");
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--primary)",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    padding: 0,
+                    textDecoration: "underline",
+                  }}
+                >
+                  Create Account
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Create Account Page */
+            <div className="card" style={{ maxWidth: "440px", margin: "3.5rem auto", padding: "2.25rem 2rem" }}>
+              <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
+                <Building2 size={36} color="var(--primary)" style={{ margin: "0 auto 0.5rem auto" }} />
+                <h2 style={{ fontSize: "1.45rem", fontWeight: 800, color: "var(--text-primary)" }}>
+                  Create your DealFlow360 account
+                </h2>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", marginTop: "0.35rem" }}>
+                  Register for a customer account to track quotations, orders, and fulfillment.
+                </p>
+              </div>
+
+              <form onSubmit={handleSignupSubmit}>
+                <div className="form-group">
+                  <label className="form-label">Full Name</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Jane Doe"
+                    value={signupFullName}
+                    onChange={(e) => setSignupFullName(e.target.value)}
+                    autoComplete="name"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Email Address</label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    placeholder="name@company.com"
+                    value={signupEmail}
+                    onChange={(e) => setSignupEmail(e.target.value)}
+                    autoComplete="email"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Password</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="••••••••"
+                    value={signupPassword}
+                    onChange={(e) => setSignupPassword(e.target.value)}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Confirm Password</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="••••••••"
+                    value={signupConfirmPassword}
+                    onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: "100%", marginTop: "0.75rem" }}
+                  disabled={authSubmitting}
+                >
+                  {authSubmitting ? "Creating Account..." : "Create Account"}
+                </button>
+              </form>
+
+              <div
+                style={{
+                  marginTop: "1.75rem",
+                  paddingTop: "1.25rem",
+                  borderTop: "1px solid var(--border-subtle)",
+                  textAlign: "center",
+                  fontSize: "0.9rem",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("login")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--primary)",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    padding: 0,
+                    textDecoration: "underline",
+                  }}
+                >
+                  Sign In
+                </button>
+              </div>
+            </div>
+          )
         ) : !isAuthorized ? (
           /* Route Protection: Access Restricted View */
           <div

@@ -13,7 +13,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     full_name: str
-    role: Role = Role.SALES_REP
+    role: Role = Role.CUSTOMER
 
 
 class UserResponse(BaseModel):

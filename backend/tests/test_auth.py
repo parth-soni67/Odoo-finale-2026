@@ -146,3 +146,84 @@ def test_rbac_multi_role_allow_and_deny(client: TestClient):
     )
     assert rep_resp.status_code == 403
     assert rep_resp.json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_signup_success(client: TestClient):
+    """Verifies that a new user can register via /api/auth/signup with default CUSTOMER role."""
+    import uuid
+    unique_email = f"newuser_{uuid.uuid4().hex[:8]}@example.com"
+    resp = client.post(
+        "/api/auth/signup",
+        json={
+            "email": unique_email,
+            "password": "Password123!",
+            "full_name": "New Test User",
+        },
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["email"] == unique_email
+    assert data["full_name"] == "New Test User"
+    assert data["role"] == "CUSTOMER"
+
+
+def test_signup_duplicate_email(client: TestClient):
+    """Verifies that duplicate signup returns 400 with EMAIL_EXISTS error."""
+    resp = client.post(
+        "/api/auth/signup",
+        json={
+            "email": "customer@acmecorp.com",
+            "password": "Password123!",
+            "full_name": "Duplicate User",
+        },
+    )
+    assert resp.status_code == 400
+    data = resp.json()
+    assert "error" in data
+    assert data["error"]["code"] == "EMAIL_EXISTS"
+
+
+def test_signup_privileged_role_prevention(client: TestClient):
+    """Verifies that attempting to register with ADMIN role is prevented and defaults to CUSTOMER."""
+    import uuid
+    unique_email = f"hacker_{uuid.uuid4().hex[:8]}@example.com"
+    resp = client.post(
+        "/api/auth/signup",
+        json={
+            "email": unique_email,
+            "password": "Password123!",
+            "full_name": "Privilege Escalation Attempt",
+            "role": "ADMIN",
+        },
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["role"] == "CUSTOMER"  # forced to CUSTOMER
+
+
+def test_signup_then_login_flow(client: TestClient):
+    """Verifies complete registration and subsequent login flow."""
+    import uuid
+    unique_email = f"flow_{uuid.uuid4().hex[:8]}@example.com"
+    signup_resp = client.post(
+        "/api/auth/signup",
+        json={
+            "email": unique_email,
+            "password": "MySecretPassword123!",
+            "full_name": "Flow User",
+        },
+    )
+    assert signup_resp.status_code == 201
+
+    login_resp = client.post(
+        "/api/auth/login",
+        json={
+            "email": unique_email,
+            "password": "MySecretPassword123!",
+        },
+    )
+    assert login_resp.status_code == 200
+    token_data = login_resp.json()
+    assert "access_token" in token_data
+    assert token_data["user"]["email"] == unique_email
+    assert token_data["user"]["role"] == "CUSTOMER"
