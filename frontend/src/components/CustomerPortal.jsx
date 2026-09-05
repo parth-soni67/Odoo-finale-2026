@@ -235,20 +235,20 @@ export function CustomerPortal({ user, onNotify }) {
   return (
     <div>
       {/* Customer Header Banner */}
-      <div className="card" style={{ marginBottom: "1.5rem", background: "linear-gradient(135deg, #111827 0%, #1e1b4b 100%)" }}>
+      <div className="card" style={{ marginBottom: "1.5rem", borderLeft: "4px solid var(--primary)", background: "var(--bg-surface)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.25rem" }}>
-              <Building2 size={24} color="var(--primary)" />
-              <h1 style={{ fontSize: "1.5rem", fontWeight: 800 }}>{profile?.company_name || "Customer Workspace"}</h1>
+              <Building2 size={22} color="var(--primary)" />
+              <h1 style={{ fontSize: "1.4rem", fontWeight: 800, color: "var(--text-primary)" }}>{profile?.company_name || "Customer Workspace"}</h1>
               <span className="badge badge-info">{profile?.tier || "STANDARD"} TIER</span>
             </div>
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-              Authorized Contact: <strong>{profile?.contact_name}</strong> ({profile?.email})
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.88rem" }}>
+              Authorized Contact: <strong style={{ color: "var(--text-primary)" }}>{profile?.contact_name}</strong> ({profile?.email})
             </p>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Discount Ceiling</div>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.04em" }}>Discount Ceiling</div>
             <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--status-healthy)" }}>
               {profile?.discount_ceiling || 10}%
             </div>
@@ -317,14 +317,14 @@ export function CustomerPortal({ user, onNotify }) {
                       style={{
                         padding: "1rem",
                         borderRadius: "var(--radius-md)",
-                        background: isSelected ? "var(--bg-surface-elevated)" : "var(--bg-surface)",
+                        background: isSelected ? "var(--primary-light)" : "var(--bg-surface)",
                         border: isSelected ? "1px solid var(--primary)" : "1px solid var(--border-subtle)",
                         cursor: "pointer",
                         transition: "all 0.15s ease",
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
-                        <span style={{ fontWeight: 700, color: "#fff" }}>{q.quote_number}</span>
+                        <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{q.quote_number}</span>
                         <span className={`badge ${badgeClass}`}>{q.status}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
@@ -343,8 +343,8 @@ export function CustomerPortal({ user, onNotify }) {
             <div className="card">
               <div className="card-header">
                 <div>
-                  <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Quotation Details</div>
-                  <h2 style={{ fontSize: "1.3rem", fontWeight: 800, color: "#fff" }}>{selectedQuote.quote_number}</h2>
+                  <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.04em" }}>Quotation Details</div>
+                  <h2 style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--text-primary)" }}>{selectedQuote.quote_number}</h2>
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
                   <button
@@ -403,16 +403,16 @@ export function CustomerPortal({ user, onNotify }) {
               </div>
 
               {/* Financial Summary */}
-              <div style={{ background: "var(--bg-surface-elevated)", padding: "1rem", borderRadius: "var(--radius-md)", marginBottom: "1.5rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem", fontSize: "0.9rem", color: "var(--text-secondary)" }}>
+              <div style={{ background: "var(--bg-surface-elevated)", border: "1px solid var(--border-subtle)", padding: "1.1rem", borderRadius: "var(--radius-md)", marginBottom: "1.5rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem", fontSize: "0.88rem", color: "var(--text-secondary)" }}>
                   <span>Subtotal:</span>
-                  <span>${selectedQuote.subtotal.toFixed(2)}</span>
+                  <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>${selectedQuote.subtotal.toFixed(2)}</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem", fontSize: "0.9rem", color: "var(--status-healthy)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem", fontSize: "0.88rem", color: "var(--status-healthy)" }}>
                   <span>Total Discount:</span>
-                  <span>-${selectedQuote.total_discount.toFixed(2)}</span>
+                  <span style={{ fontWeight: 600 }}>-${selectedQuote.total_discount.toFixed(2)}</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "1.15rem", fontWeight: 800, color: "#fff", borderTop: "1px solid var(--border-subtle)", paddingTop: "0.6rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "1.15rem", fontWeight: 800, color: "var(--text-primary)", borderTop: "1px solid var(--border-subtle)", paddingTop: "0.6rem" }}>
                   <span>Total Payable:</span>
                   <span>${selectedQuote.total_amount.toFixed(2)}</span>
                 </div>
@@ -421,7 +421,7 @@ export function CustomerPortal({ user, onNotify }) {
               {/* Negotiation Thread */}
               <div>
                 <h3 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <MessageSquare size={16} /> Negotiation & Revision History
+                  <MessageSquare size={16} color="var(--primary)" /> Negotiation & Revision History
                 </h3>
                 {selectedQuote.negotiations.length === 0 ? (
                   <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No change requests submitted yet.</p>
@@ -436,10 +436,11 @@ export function CustomerPortal({ user, onNotify }) {
                         <div
                           key={neg.id}
                           style={{
-                            padding: "0.85rem",
+                            padding: "0.85rem 1rem",
                             background: "var(--bg-surface-elevated)",
+                            border: "1px solid var(--border-subtle)",
                             borderRadius: "var(--radius-sm)",
-                            borderLeft: "3px solid var(--primary)",
+                            borderLeft: "4px solid var(--primary)",
                           }}
                         >
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.3rem" }}>
@@ -532,14 +533,14 @@ export function CustomerPortal({ user, onNotify }) {
                         style={{
                           padding: "1rem",
                           borderRadius: "var(--radius-md)",
-                          background: isSelected ? "var(--bg-surface-elevated)" : "var(--bg-surface)",
+                          background: isSelected ? "var(--primary-light)" : "var(--bg-surface)",
                           border: isSelected ? "1px solid var(--primary)" : "1px solid var(--border-subtle)",
                           cursor: "pointer",
                           transition: "all 0.15s ease",
                         }}
                       >
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
-                          <span style={{ fontWeight: 700, color: "#fff" }}>Order #{ord.order_number}</span>
+                          <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>Order #{ord.order_number}</span>
                           <span className={`badge ${badgeClass}`}>{dispStatus}</span>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-secondary)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
@@ -593,10 +594,10 @@ export function CustomerPortal({ user, onNotify }) {
                     <div className="card">
                       <div className="card-header" style={{ marginBottom: "1.25rem", borderBottom: "1px solid var(--border-subtle)", paddingBottom: "1rem" }}>
                         <div>
-                          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>
+                          <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.04em" }}>
                             Order Fulfillment & Tracking
                           </div>
-                          <h2 style={{ fontSize: "1.4rem", fontWeight: 800, color: "#fff", display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.25rem" }}>
+                          <h2 style={{ fontSize: "1.35rem", fontWeight: 800, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.25rem" }}>
                             Order #{selectedOrder.order_number}
                             <span className={`badge ${statusBadge}`} style={{ fontSize: "0.8rem", padding: "0.25rem 0.6rem" }}>
                               {currentStatus}
@@ -679,11 +680,11 @@ export function CustomerPortal({ user, onNotify }) {
                                   border: "1px solid var(--border-subtle)",
                                 }}
                               >
-                                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#fff", marginBottom: "0.35rem" }}>
+                                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", marginBottom: "0.35rem" }}>
                                   {split.warehouse_name || `Warehouse #${split.warehouse_id}`}
                                 </div>
                                 <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "0.5rem" }}>
-                                  <strong>{split.quantity_allocated} units</strong> allocated
+                                  <strong style={{ color: "var(--text-primary)" }}>{split.quantity_allocated} units</strong> allocated
                                 </div>
                                 <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem" }}>
                                   <span style={{ color: "var(--text-muted)" }}>Status:</span>
@@ -700,17 +701,17 @@ export function CustomerPortal({ user, onNotify }) {
                             marginTop: "0.75rem",
                             padding: "0.85rem 1rem",
                             borderRadius: "var(--radius-md)",
-                            background: backorderedQty > 0 ? "rgba(239, 68, 68, 0.1)" : "var(--bg-surface-elevated)",
-                            border: backorderedQty > 0 ? "1px solid rgba(239, 68, 68, 0.3)" : "1px solid var(--border-subtle)",
+                            background: backorderedQty > 0 ? "var(--status-high-bg)" : "var(--bg-surface-elevated)",
+                            border: backorderedQty > 0 ? "1px solid var(--status-high-border)" : "1px solid var(--border-subtle)",
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "center",
                           }}
                         >
-                          <span style={{ fontSize: "0.9rem", fontWeight: 600, color: backorderedQty > 0 ? "var(--status-high)" : "var(--text-secondary)" }}>
+                          <span style={{ fontSize: "0.9rem", fontWeight: 600, color: backorderedQty > 0 ? "var(--status-high-text)" : "var(--text-secondary)" }}>
                             Backorder
                           </span>
-                          <span style={{ fontSize: "0.9rem", fontWeight: 700, color: backorderedQty > 0 ? "var(--status-high)" : "var(--status-healthy)" }}>
+                          <span style={{ fontSize: "0.9rem", fontWeight: 700, color: backorderedQty > 0 ? "var(--status-high-text)" : "var(--status-healthy-text)" }}>
                             {backorderedQty > 0 ? `${backorderedQty} units remaining` : "0 units remaining"}
                           </span>
                         </div>
@@ -726,27 +727,28 @@ export function CustomerPortal({ user, onNotify }) {
                           border: "1px solid var(--border-subtle)",
                         }}
                       >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                          <span style={{ fontSize: "0.9rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--text-secondary)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
+                          <span style={{ fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-secondary)" }}>
                             Fulfillment Progress
                           </span>
-                          <span style={{ fontSize: "1.1rem", fontWeight: 800, color: fulfillmentPercent === 100 ? "var(--status-healthy)" : "var(--primary)" }}>
+                          <span style={{ fontSize: "1.1rem", fontWeight: 800, color: fulfillmentPercent === 100 ? "var(--status-healthy-text)" : "var(--primary)" }}>
                             {fulfillmentPercent}%
                           </span>
                         </div>
-                        <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: "var(--radius-full)", height: "10px", overflow: "hidden", marginBottom: "0.5rem" }}>
+                        <div style={{ background: "#e2e8f0", borderRadius: "var(--radius-full)", height: "9px", overflow: "hidden", marginBottom: "0.5rem" }}>
                           <div
                             style={{
                               width: `${fulfillmentPercent}%`,
-                              background: fulfillmentPercent === 100 ? "var(--status-healthy)" : "linear-gradient(90deg, var(--primary) 0%, #6366f1 100%)",
+                              background: fulfillmentPercent === 100 ? "var(--status-healthy)" : "var(--primary)",
                               height: "100%",
                               borderRadius: "var(--radius-full)",
-                              transition: "width 0.4s ease",
+                              transition: "width 0.3s ease",
                             }}
                           />
                         </div>
-                        <div style={{ fontFamily: "monospace", fontSize: "0.85rem", color: "var(--primary)", letterSpacing: "0.05em" }}>
-                          {formatAsciiProgress(fulfillmentPercent)} {fulfillmentPercent}%
+                        <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", display: "flex", justifyContent: "space-between" }}>
+                          <span>{totalAllocatedQty} of {totalPhysicalQty} physical units allocated</span>
+                          <span>{fulfillmentPercent}% Completed</span>
                         </div>
                       </div>
 

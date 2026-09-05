@@ -131,7 +131,7 @@ export function ProductManagement({ user, onNotify }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <div>
-          <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "#fff", display: "flex", alignItems: "center", gap: "0.6rem" }}>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <Package color="var(--primary)" size={24} /> Product Catalog Management
           </h1>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
@@ -203,7 +203,7 @@ export function ProductManagement({ user, onNotify }) {
                 filteredProducts.map((p) => (
                   <tr key={p.id}>
                     <td>
-                      <strong style={{ color: "#fff" }}>{p.name}</strong>
+                      <strong style={{ color: "var(--text-primary)" }}>{p.name}</strong>
                       {p.description && (
                         <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", maxWidth: "280px" }}>
                           {p.description}

@@ -106,7 +106,7 @@ export function CustomerManagement({ user, onNotify }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <div>
-          <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "#fff", display: "flex", alignItems: "center", gap: "0.6rem" }}>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <Users color="var(--primary)" size={24} /> Customer Accounts & Tier Governance
           </h1>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
@@ -176,7 +176,7 @@ export function CustomerManagement({ user, onNotify }) {
               ) : (
                 filteredCustomers.map((c) => (
                   <tr key={c.id}>
-                    <td><strong style={{ color: "#fff" }}>{c.company_name}</strong></td>
+                    <td><strong style={{ color: "var(--text-primary)" }}>{c.company_name}</strong></td>
                     <td>{c.contact_name}</td>
                     <td><code>{c.email}</code></td>
                     <td>

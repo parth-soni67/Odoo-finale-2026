@@ -43,7 +43,7 @@ export function SalesReports({ onNotify }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <div>
-          <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "#fff", display: "flex", alignItems: "center", gap: "0.6rem" }}>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <BarChart3 color="var(--primary)" size={24} /> Sales Operations & Governance Analytics
           </h1>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>

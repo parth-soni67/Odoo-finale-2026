@@ -55,7 +55,7 @@ export function DealHealthDashboard({ onInspectNegotiation, onNotify }) {
       {/* Top Banner */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <div>
-          <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "#fff", display: "flex", alignItems: "center", gap: "0.6rem" }}>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <Activity color="var(--primary)" size={24} /> Deal Health & Governance Engine
           </h1>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
@@ -128,9 +128,9 @@ export function DealHealthDashboard({ onInspectNegotiation, onNotify }) {
             <AlertOctagon size={14} /> High Risk ({data?.high_risk_count || 0})
           </button>
           <button
-            className={`btn btn-sm ${selectedFilter === "MEDIUM_RISK" ? "btn-secondary" : "btn-secondary"}`}
+            className="btn btn-sm btn-secondary"
             onClick={() => setSelectedFilter("MEDIUM_RISK")}
-            style={selectedFilter === "MEDIUM_RISK" ? { background: "var(--status-medium)", color: "#fff" } : {}}
+            style={selectedFilter === "MEDIUM_RISK" ? { background: "var(--status-medium)", color: "#ffffff", borderColor: "var(--status-medium)" } : {}}
           >
             <AlertTriangle size={14} /> Medium Risk ({data?.medium_risk_count || 0})
           </button>
@@ -195,7 +195,7 @@ export function DealHealthDashboard({ onInspectNegotiation, onNotify }) {
                   return (
                     <tr key={deal.quote_id}>
                       <td>
-                        <strong style={{ color: "#fff" }}>{deal.quote_number}</strong>
+                        <strong style={{ color: "var(--text-primary)" }}>{deal.quote_number}</strong>
                         <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
                           {new Date(deal.created_at).toLocaleDateString()}
                         </div>
@@ -321,7 +321,7 @@ export function DealHealthDashboard({ onInspectNegotiation, onNotify }) {
               <div style={{ fontSize: "0.8rem", color: "var(--status-info)", fontWeight: 700, textTransform: "uppercase", marginBottom: "0.25rem" }}>
                 Next Recommended Step
               </div>
-              <div style={{ fontWeight: 600, color: "#fff" }}>
+              <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>
                 {inspectDeal.next_action}
               </div>
             </div>

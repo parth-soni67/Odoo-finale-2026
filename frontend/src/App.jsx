@@ -90,7 +90,7 @@ export default function App() {
 
   if (authLoading) {
     return (
-      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg-main)", color: "#fff" }}>
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg-main)", color: "var(--text-primary)", fontWeight: 600 }}>
         Loading DealFlow360...
       </div>
     );
