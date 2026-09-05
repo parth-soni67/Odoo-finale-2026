@@ -989,156 +989,128 @@ export function QuotationWorkflow({ user, onNotify, onInspectDeal }) {
                           </button>
                         </div>
 
-                        {/* Subscription / Service Configuration Section */}
+                        {/* Purchase Type & Subscription Configuration */}
                         <div style={{ marginTop: "0.75rem", paddingTop: "0.6rem", borderTop: "1px dashed var(--border-subtle)" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-                            <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.35rem" }}>
-                              <Sparkles size={13} color="var(--primary)" /> Subscription / Service
-                            </span>
-
-                            {/* Purchase Type Toggle: One-Time vs Subscription */}
-                            <div style={{ display: "inline-flex", background: "var(--bg-surface)", padding: "2px", borderRadius: "6px", border: "1px solid var(--border-subtle)" }}>
-                              <button
-                                type="button"
-                                onClick={() => updateLine(idx, "purchase_type", "ONE_TIME")}
-                                style={{
-                                  padding: "0.25rem 0.65rem",
-                                  fontSize: "0.76rem",
-                                  fontWeight: line.purchase_type === "ONE_TIME" ? 700 : 500,
-                                  borderRadius: "4px",
-                                  border: "none",
-                                  background: line.purchase_type === "ONE_TIME" ? "var(--bg-surface-elevated)" : "transparent",
-                                  color: line.purchase_type === "ONE_TIME" ? "var(--text-primary)" : "var(--text-secondary)",
-                                  boxShadow: line.purchase_type === "ONE_TIME" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                One-Time
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  updateLine(idx, "purchase_type", "SUBSCRIPTION");
-                                  if (!line.subscription_name) {
-                                    const prod = products.find((p) => p.id === Number(line.product_id));
-                                    updateLine(idx, "subscription_name", prod ? `${prod.name} Subscription` : (subscriptionPlans[0]?.name || "Service Plan"));
-                                  }
-                                }}
-                                style={{
-                                  padding: "0.25rem 0.65rem",
-                                  fontSize: "0.76rem",
-                                  fontWeight: line.purchase_type === "SUBSCRIPTION" ? 700 : 500,
-                                  borderRadius: "4px",
-                                  border: "none",
-                                  background: line.purchase_type === "SUBSCRIPTION" ? "var(--primary)" : "transparent",
-                                  color: line.purchase_type === "SUBSCRIPTION" ? "#FFFFFF" : "var(--text-secondary)",
-                                  boxShadow: line.purchase_type === "SUBSCRIPTION" ? "0 1px 2px rgba(37,99,235,0.2)" : "none",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                Subscription
-                              </button>
+                          <div style={{ marginBottom: "0.5rem" }}>
+                            <label style={{ fontSize: "0.76rem", fontWeight: 700, color: "var(--text-secondary)", display: "block", marginBottom: "0.35rem" }}>
+                              Purchase Type
+                            </label>
+                            <div style={{ display: "flex", gap: "1.25rem", alignItems: "center" }}>
+                              <label style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.82rem", fontWeight: line.purchase_type === "ONE_TIME" ? 700 : 500, color: line.purchase_type === "ONE_TIME" ? "var(--text-primary)" : "var(--text-secondary)", cursor: "pointer" }}>
+                                <input
+                                  type="radio"
+                                  name={`purchase_type_${idx}`}
+                                  checked={line.purchase_type === "ONE_TIME"}
+                                  onChange={() => updateLine(idx, "purchase_type", "ONE_TIME")}
+                                />
+                                One-Time Purchase
+                              </label>
+                              <label style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.82rem", fontWeight: line.purchase_type === "SUBSCRIPTION" ? 700 : 500, color: line.purchase_type === "SUBSCRIPTION" ? "var(--primary)" : "var(--text-secondary)", cursor: "pointer" }}>
+                                <input
+                                  type="radio"
+                                  name={`purchase_type_${idx}`}
+                                  checked={line.purchase_type === "SUBSCRIPTION"}
+                                  onChange={() => {
+                                    updateLine(idx, "purchase_type", "SUBSCRIPTION");
+                                    if (!line.subscription_name) {
+                                      const prod = products.find((p) => p.id === Number(line.product_id));
+                                      updateLine(idx, "subscription_name", subscriptionPlans[0]?.name || (prod ? `${prod.name} Subscription` : "Subscription Plan"));
+                                      if (subscriptionPlans[0]?.id) updateLine(idx, "subscription_plan_id", String(subscriptionPlans[0].id));
+                                    }
+                                  }}
+                                />
+                                With Subscription
+                              </label>
                             </div>
                           </div>
 
                           {line.purchase_type === "SUBSCRIPTION" && (
-                            <div style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "6px", padding: "0.75rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-                              
-                              {/* Row 1: Plan & Validity Mode */}
-                              <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "0.6rem" }}>
-                                <div>
-                                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: "0.25rem" }}>
-                                    Subscription Plan
-                                  </label>
-                                  <select
-                                    className="form-select"
-                                    style={{ fontSize: "0.8rem", padding: "0.3rem 0.5rem", height: "32px" }}
-                                    value={line.subscription_plan_id || ""}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      updateLine(idx, "subscription_plan_id", val);
-                                      if (val !== "custom") {
-                                        const sel = subscriptionPlans.find((p) => String(p.id) === String(val));
-                                        if (sel) updateLine(idx, "subscription_name", sel.name);
-                                      }
-                                    }}
-                                  >
-                                    <option value="">Select plan...</option>
-                                    {subscriptionPlans.map((p) => (
-                                      <option key={p.id} value={p.id}>{p.name}</option>
-                                    ))}
-                                    <option value="custom">+ Custom Plan Name</option>
-                                  </select>
-                                  {line.subscription_plan_id === "custom" && (
-                                    <input
-                                      type="text"
-                                      className="form-input"
-                                      style={{ fontSize: "0.78rem", padding: "0.25rem 0.5rem", height: "30px", marginTop: "0.3rem" }}
-                                      placeholder="Enter custom plan name..."
-                                      value={line.subscription_name}
-                                      onChange={(e) => updateLine(idx, "subscription_name", e.target.value)}
-                                    />
-                                  )}
-                                </div>
+                            <div style={{ backgroundColor: "var(--bg-surface)", border: "1px solid #BFDBFE", borderRadius: "6px", padding: "0.85rem", display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "0.5rem" }}>
+                              <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1D4ED8", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                                <Sparkles size={14} /> Subscription Configuration
+                              </div>
 
-                                <div>
-                                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: "0.25rem" }}>
-                                    Validity
-                                  </label>
-                                  <div style={{ display: "inline-flex", width: "100%", background: "var(--bg-surface-elevated)", border: "1px solid var(--border-subtle)", borderRadius: "4px", padding: "2px", height: "32px", boxSizing: "border-box" }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
+                              {/* Subscription Type / Plan */}
+                              <div>
+                                <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: "0.25rem" }}>
+                                  Subscription Type / Plan
+                                </label>
+                                <select
+                                  className="form-select"
+                                  style={{ fontSize: "0.8rem", padding: "0.3rem 0.5rem", height: "32px", width: "100%" }}
+                                  value={line.subscription_plan_id || ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    updateLine(idx, "subscription_plan_id", val);
+                                    if (val !== "custom") {
+                                      const sel = subscriptionPlans.find((p) => String(p.id) === String(val));
+                                      if (sel) updateLine(idx, "subscription_name", sel.name);
+                                    }
+                                  }}
+                                >
+                                  <option value="">Select Subscription Plan...</option>
+                                  {subscriptionPlans.map((p) => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                  ))}
+                                  <option value="custom">+ Custom Plan Name</option>
+                                </select>
+                                {line.subscription_plan_id === "custom" && (
+                                  <input
+                                    type="text"
+                                    className="form-input"
+                                    style={{ fontSize: "0.78rem", padding: "0.25rem 0.5rem", height: "30px", marginTop: "0.3rem" }}
+                                    placeholder="Enter custom plan name..."
+                                    value={line.subscription_name || ""}
+                                    onChange={(e) => updateLine(idx, "subscription_name", e.target.value)}
+                                  />
+                                )}
+                              </div>
+
+                              {/* Validity: Lifetime vs Till Validity */}
+                              <div>
+                                <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: "0.25rem" }}>
+                                  Validity
+                                </label>
+                                <div style={{ display: "flex", gap: "1.25rem", alignItems: "center" }}>
+                                  <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.8rem", cursor: "pointer" }}>
+                                    <input
+                                      type="radio"
+                                      name={`validity_${idx}`}
+                                      checked={line.duration_mode === "LIFETIME"}
+                                      onChange={() => {
                                         updateLine(idx, "duration_mode", "LIFETIME");
                                         updateLine(idx, "billing_frequency", "NONE");
                                       }}
-                                      style={{
-                                        flex: 1,
-                                        fontSize: "0.76rem",
-                                        fontWeight: line.duration_mode === "LIFETIME" ? 700 : 500,
-                                        border: "none",
-                                        borderRadius: "3px",
-                                        background: line.duration_mode === "LIFETIME" ? "var(--primary)" : "transparent",
-                                        color: line.duration_mode === "LIFETIME" ? "#FFFFFF" : "var(--text-secondary)",
-                                        cursor: "pointer",
-                                      }}
-                                    >
-                                      Lifetime
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
+                                    />
+                                    Lifetime
+                                  </label>
+                                  <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.8rem", cursor: "pointer" }}>
+                                    <input
+                                      type="radio"
+                                      name={`validity_${idx}`}
+                                      checked={line.duration_mode !== "LIFETIME"}
+                                      onChange={() => {
                                         updateLine(idx, "duration_mode", "TILL_VALIDITY");
                                         if (line.billing_frequency === "NONE") {
                                           updateLine(idx, "billing_frequency", "MONTHLY");
                                         }
                                       }}
-                                      style={{
-                                        flex: 1,
-                                        fontSize: "0.76rem",
-                                        fontWeight: line.duration_mode !== "LIFETIME" ? 700 : 500,
-                                        border: "none",
-                                        borderRadius: "3px",
-                                        background: line.duration_mode !== "LIFETIME" ? "var(--primary)" : "transparent",
-                                        color: line.duration_mode !== "LIFETIME" ? "#FFFFFF" : "var(--text-secondary)",
-                                        cursor: "pointer",
-                                      }}
-                                    >
-                                      Till Validity
-                                    </button>
-                                  </div>
+                                    />
+                                    Till Validity
+                                  </label>
                                 </div>
                               </div>
 
-                              {/* If Till Validity is selected, show Duration & Billing Frequency */}
+                              {/* If Till Validity: Duration & Billing Frequency */}
                               {line.duration_mode !== "LIFETIME" ? (
-                                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "0.6rem", alignItems: "flex-end" }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "0.75rem", alignItems: "flex-end" }}>
                                   <div>
                                     <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: "0.25rem" }}>
                                       Duration
                                     </label>
                                     <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap", marginBottom: line.validity_preset === "CUSTOM" ? "0.3rem" : 0 }}>
                                       {[
+                                        { label: "1 Month", value: 1, unit: "MONTHS", preset: "1_MONTH" },
                                         { label: "3 Months", value: 3, unit: "MONTHS", preset: "3_MONTHS" },
                                         { label: "6 Months", value: 6, unit: "MONTHS", preset: "6_MONTHS" },
                                         { label: "1 Year", value: 1, unit: "YEARS", preset: "1_YEAR" },
@@ -1211,7 +1183,7 @@ export function QuotationWorkflow({ user, onNotify, onInspectDeal }) {
                                 </div>
                               ) : (
                                 <div style={{ fontSize: "0.75rem", color: "#1E3A8A", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "4px", padding: "0.4rem 0.6rem" }}>
-                                  ✓ <strong>Lifetime Entitlement:</strong> Starts on order activation with included lifetime access. No recurring billing cycles.
+                                  ✓ <strong>End Date:</strong> Never • <strong>Billing:</strong> Included • No recurring billing
                                 </div>
                               )}
                             </div>

@@ -722,35 +722,30 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                     {selectedQuote.lines.map((line) => (
                       <tr key={line.id}>
                         <td>
-                          <strong>{line.product_name}</strong>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{line.subscription_enabled ? "Subscription Item" : "One-Time Item"}</div>
-                          {line.subscription_enabled && (
-                            <div style={{ marginTop: "0.35rem" }}>
-                              <span
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "0.35rem",
-                                  fontSize: "0.74rem",
-                                  fontWeight: 600,
-                                  padding: "0.2rem 0.55rem",
-                                  borderRadius: "4px",
-                                  backgroundColor: "#EFF6FF",
-                                  color: "#1D4ED8",
-                                  border: "1px solid #BFDBFE",
-                                }}
-                              >
-                                <Sparkles size={12} />
-                                {line.duration_mode === "LIFETIME" ? (
-                                  <span>Subscription: <strong>Lifetime</strong> • Included • No recurring billing</span>
-                                ) : (
-                                  <span>
-                                    Subscription: <strong>{line.validity_value || 1} {line.validity_unit || "Months"}</strong> • {line.billing_frequency === "NONE" ? "Included / No recurring billing" : `${line.billing_frequency} Billing`}
-                                  </span>
-                                )}
+                          <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)" }}>
+                            {line.product_name}
+                          </div>
+                          <div style={{ marginTop: "0.35rem", display: "flex", flexDirection: "column", gap: "0.2rem", fontSize: "0.78rem" }}>
+                            <div>
+                              <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Purchase: </span>
+                              <span style={{ fontWeight: 700, color: line.subscription_enabled ? "var(--primary)" : "var(--text-primary)" }}>
+                                {line.subscription_enabled ? "WITH SUBSCRIPTION" : "ONE-TIME PURCHASE"}
                               </span>
                             </div>
-                          )}
+                            {line.subscription_enabled && (
+                              <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "5px", padding: "0.45rem 0.65rem", marginTop: "0.25rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                                <div style={{ color: "#1E40AF" }}>
+                                  <strong>Subscription:</strong> {line.subscription_name || "Subscription Service"}
+                                </div>
+                                <div style={{ color: "#1E40AF" }}>
+                                  <strong>Validity:</strong> {line.duration_mode === "LIFETIME" ? "Lifetime" : `${line.validity_value || 1} ${line.validity_unit || "Months"}`}
+                                </div>
+                                <div style={{ color: "#1E40AF" }}>
+                                  <strong>Billing:</strong> {line.duration_mode === "LIFETIME" || line.billing_frequency === "NONE" ? "Included" : (line.billing_frequency || "Monthly")}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td><code>{line.product_sku}</code></td>
                         <td>{line.quantity}</td>

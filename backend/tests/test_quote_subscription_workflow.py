@@ -328,3 +328,199 @@ def test_11_to_20_three_month_till_validity_lifecycle_and_billing(client: TestCl
     assert hist_data["billing_cycles"][0]["cycle_number"] == 1
     assert hist_data["billing_cycles"][1]["cycle_number"] == 2
     assert hist_data["billing_cycles"][2]["cycle_number"] == 3
+
+
+def test_multiple_lines_mixed_quote_one_time_and_subscriptions(client: TestClient, db_session: Session, auth_tokens):
+    """
+    Test 10 & 11: Multi-line quote where each line has its own independent Purchase Type:
+    - Line 1: Laptop (Physical) -> One-Time Purchase
+    - Line 2: Windows Enterprise (Digital) -> With Subscription (3 Months, Monthly)
+    - Line 3: Premium Support (Service) -> With Subscription (Lifetime, Included)
+    Verifies:
+    - Independent line configurations.
+    - Only lines 2 & 3 create subscriptions.
+    - Laptop requires warehouse fulfillment; digital/service do not.
+    """
+    cust = db_session.query(Customer).first()
+    p_laptop = db_session.query(Product).filter(Product.fulfillment_type == "PHYSICAL").first()
+    p_win = db_session.query(Product).filter(Product.fulfillment_type == "DIGITAL").first()
+    p_supp = db_session.query(Product).filter(Product.fulfillment_type == "SERVICE").first()
+
+    payload = {
+        "customer_id": cust.id,
+        "lines": [
+            {
+                "product_id": p_laptop.id,
+                "quantity": 1,
+                "unit_price": 1200.0,
+                "discount_percent": 0.0,
+                "line_type": "ONE_TIME",
+                "subscription_enabled": False,
+            },
+            {
+                "product_id": p_win.id,
+                "quantity": 1,
+                "unit_price": 500.0,
+                "discount_percent": 5.0,
+                "line_type": "RECURRING",
+                "subscription_enabled": True,
+                "subscription_name": "Windows 3-Month Plan",
+                "duration_mode": "TILL_VALIDITY",
+                "validity_value": 3,
+                "validity_unit": "MONTHS",
+                "billing_frequency": "MONTHLY",
+                "subscription_start_trigger": "ORDER_ACTIVATION",
+            },
+            {
+                "product_id": p_supp.id,
+                "quantity": 1,
+                "unit_price": 300.0,
+                "discount_percent": 0.0,
+                "line_type": "ONE_TIME",
+                "subscription_enabled": True,
+                "subscription_name": "Lifetime Support Entitlement",
+                "duration_mode": "LIFETIME",
+                "billing_frequency": "NONE",
+                "subscription_start_trigger": "ORDER_ACTIVATION",
+            },
+        ],
+    }
+
+    resp = client.post("/api/quotes", json=payload, headers={"Authorization": f"Bearer {auth_tokens['salesrep']}"})
+    assert resp.status_code in (200, 201), resp.text
+    quote_id = resp.json()["id"]
+
+    # Approve & Accept
+    quote = db_session.query(Quote).filter(Quote.id == quote_id).first()
+    quote.status = QuoteStatus.APPROVED
+    db_session.commit()
+
+    accept_resp = client.post(f"/api/portal/quotes/{quote_id}/confirm", headers={"Authorization": f"Bearer {auth_tokens['customer']}"})
+    assert accept_resp.status_code == 200, accept_resp.text
+    order_id = accept_resp.json()["order_id"]
+
+    order = db_session.query(Order).filter(Order.id == order_id).first()
+    assert len(order.lines) == 3
+
+    # Check order line subscriptions
+    l_laptop = next(l for l in order.lines if l.product_id == p_laptop.id)
+    l_win = next(l for l in order.lines if l.product_id == p_win.id)
+    l_supp = next(l for l in order.lines if l.product_id == p_supp.id)
+
+    assert l_laptop.subscription_enabled is False
+    assert l_win.subscription_enabled is True
+    assert l_win.duration_mode == "TILL_VALIDITY"
+    assert l_win.validity_value == 3
+    assert l_supp.subscription_enabled is True
+    assert l_supp.duration_mode == "LIFETIME"
+
+    # Check created subscriptions (exactly 2, not 3)
+    order_subs = db_session.query(Subscription).filter(Subscription.order_id == order.id).all()
+    assert len(order_subs) == 2
+
+    sub_win = next(s for s in order_subs if s.product_id == p_win.id)
+    sub_supp = next(s for s in order_subs if s.product_id == p_supp.id)
+
+    assert sub_win.status == SubscriptionStatus.ACTIVE
+    assert sub_win.duration_mode == "TILL_VALIDITY"
+    assert sub_win.end_date is not None
+
+    assert sub_supp.status == SubscriptionStatus.ACTIVE
+    assert sub_supp.duration_mode == "LIFETIME"
+    assert sub_supp.end_date is None
+
+
+def test_repurchase_preserves_old_subscription_history(client: TestClient, db_session: Session, auth_tokens):
+    """
+    Test 15: Repurchase workflow.
+    - Customer purchases subscription in September (expires in December).
+    - Customer repurchases the same subscription in February.
+    - Both subscriptions must remain in subscription history (never overwrite).
+    """
+    cust = db_session.query(Customer).first()
+    prod = db_session.query(Product).filter(Product.fulfillment_type == "DIGITAL").first()
+
+    # Quote 1: September purchase
+    q1_resp = client.post(
+        "/api/quotes",
+        json={
+            "customer_id": cust.id,
+            "lines": [
+                {
+                    "product_id": prod.id,
+                    "quantity": 1,
+                    "unit_price": 400.0,
+                    "discount_percent": 0.0,
+                    "subscription_enabled": True,
+                    "subscription_name": "Cloud Security Suite",
+                    "duration_mode": "TILL_VALIDITY",
+                    "validity_value": 3,
+                    "validity_unit": "MONTHS",
+                    "billing_frequency": "MONTHLY",
+                }
+            ],
+        },
+        headers={"Authorization": f"Bearer {auth_tokens['salesrep']}"},
+    )
+    assert q1_resp.status_code in (200, 201)
+    q1_id = q1_resp.json()["id"]
+
+    q1 = db_session.query(Quote).filter(Quote.id == q1_id).first()
+    q1.status = QuoteStatus.APPROVED
+    db_session.commit()
+
+    c1_resp = client.post(f"/api/portal/quotes/{q1_id}/confirm", headers={"Authorization": f"Bearer {auth_tokens['customer']}"})
+    o1_id = c1_resp.json()["order_id"]
+
+    sub1 = db_session.query(Subscription).filter(Subscription.order_id == o1_id).first()
+    assert sub1 is not None
+
+    # Simulate sub1 expiry
+    sub1.status = SubscriptionStatus.EXPIRED
+    db_session.commit()
+
+    # Quote 2: Repurchase later
+    q2_resp = client.post(
+        "/api/quotes",
+        json={
+            "customer_id": cust.id,
+            "lines": [
+                {
+                    "product_id": prod.id,
+                    "quantity": 1,
+                    "unit_price": 400.0,
+                    "discount_percent": 0.0,
+                    "subscription_enabled": True,
+                    "subscription_name": "Cloud Security Suite",
+                    "duration_mode": "TILL_VALIDITY",
+                    "validity_value": 3,
+                    "validity_unit": "MONTHS",
+                    "billing_frequency": "MONTHLY",
+                }
+            ],
+        },
+        headers={"Authorization": f"Bearer {auth_tokens['salesrep']}"},
+    )
+    assert q2_resp.status_code in (200, 201)
+    q2_id = q2_resp.json()["id"]
+
+    q2 = db_session.query(Quote).filter(Quote.id == q2_id).first()
+    q2.status = QuoteStatus.APPROVED
+    db_session.commit()
+
+    c2_resp = client.post(f"/api/portal/quotes/{q2_id}/confirm", headers={"Authorization": f"Bearer {auth_tokens['customer']}"})
+    o2_id = c2_resp.json()["order_id"]
+
+    sub2 = db_session.query(Subscription).filter(Subscription.order_id == o2_id).first()
+    assert sub2 is not None
+    assert sub2.id != sub1.id
+    assert sub2.status == SubscriptionStatus.ACTIVE
+
+    # Verify portal subscriptions list returns both
+    portal_subs_resp = client.get("/api/portal/subscriptions", headers={"Authorization": f"Bearer {auth_tokens['customer']}"})
+    assert portal_subs_resp.status_code == 200
+    portal_subs = portal_subs_resp.json()
+    sub_ids = [s["id"] for s in portal_subs]
+    assert sub1.id in sub_ids
+    assert sub2.id in sub_ids
+

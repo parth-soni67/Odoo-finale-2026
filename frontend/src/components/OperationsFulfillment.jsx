@@ -261,28 +261,28 @@ export function OperationsFulfillment({ onNotify }) {
                             )}
                           </div>
 
-                          {line.subscription_enabled && (
-                            <div style={{ marginTop: "0.25rem" }}>
-                              <span
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "0.25rem",
-                                  fontSize: "0.72rem",
-                                  fontWeight: 600,
-                                  padding: "0.15rem 0.45rem",
-                                  borderRadius: "4px",
-                                  backgroundColor: "#EFF6FF",
-                                  color: "#1D4ED8",
-                                  border: "1px solid #BFDBFE",
-                                }}
-                              >
-                                <Sparkles size={11} /> Entitlement: {line.subscription_name} (
-                                {line.duration_mode === "LIFETIME" ? "Lifetime" : `${line.validity_value || 1} ${line.validity_unit || "MONTHS"}`}
-                                )
-                              </span>
-                            </div>
-                          )}
+                          {line.subscription_enabled && (() => {
+                            const sub = (selectedOrder.subscriptions || []).find((s) => s.product_id === line.product_id || s.name === line.subscription_name);
+                            const isLifetime = line.duration_mode === "LIFETIME";
+                            const startDateStr = sub?.start_date ? new Date(sub.start_date).toLocaleDateString() : (selectedOrder.status === "CONFIRMED" ? new Date(selectedOrder.created_at).toLocaleDateString() : "Pending Activation");
+                            const endDateStr = isLifetime ? "Never" : (sub?.end_date ? new Date(sub.end_date).toLocaleDateString() : `${line.validity_value || 1} ${line.validity_unit || "MONTHS"} after activation`);
+                            const billingStr = isLifetime || line.billing_frequency === "NONE" ? "Included" : (line.billing_frequency || "Monthly");
+
+                            return (
+                              <div style={{ marginTop: "0.45rem", padding: "0.5rem 0.75rem", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "6px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.78rem", fontWeight: 700, color: "#1D4ED8", marginBottom: "0.25rem" }}>
+                                  <Sparkles size={12} /> Subscription: {line.subscription_name || "Subscription Plan"}
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.35rem", fontSize: "0.74rem", color: "var(--text-secondary)" }}>
+                                  <div><strong>Validity:</strong> {isLifetime ? "Lifetime" : `${line.validity_value || 1} ${line.validity_unit || "MONTHS"}`}</div>
+                                  <div><strong>Status:</strong> <span className={`badge ${sub?.status === "ACTIVE" || selectedOrder.status === "CONFIRMED" ? "badge-healthy" : "badge-neutral"}`} style={{ fontSize: "0.68rem" }}>{sub?.status || (selectedOrder.status === "CONFIRMED" ? "ACTIVE" : "PENDING")}</span></div>
+                                  <div><strong>Billing:</strong> {billingStr}</div>
+                                  <div><strong>Start Date:</strong> {startDateStr}</div>
+                                  <div><strong>End Date:</strong> {endDateStr}</div>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                         <span className="badge badge-neutral">Qty: {line.quantity}</span>
                       </div>
