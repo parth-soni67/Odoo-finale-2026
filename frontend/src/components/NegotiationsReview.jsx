@@ -150,9 +150,22 @@ export function NegotiationsReview({ onNotify }) {
                       <td><strong>#{neg.id}</strong></td>
                       <td><code>Quote #{neg.quote_id}</code></td>
                       <td><strong>{neg.requested_change}</strong></td>
-                      <td><code>{neg.previous_value || "N/A"}%</code></td>
+                      <td><code>{(() => {
+                        const req = (neg.requested_change || "").toLowerCase();
+                        const val = neg.previous_value;
+                        if (!val || val === "N/A") return "N/A";
+                        if (req.includes("discount") || req.includes("percent")) return `${val}%`;
+                        if (req.includes("price") || req.includes("amount") || req.includes("total")) return `$${val}`;
+                        return val;
+                      })()}</code></td>
                       <td>
-                        <strong style={{ color: "var(--primary)" }}>{neg.proposed_value}%</strong>
+                        <strong style={{ color: "var(--primary)" }}>{(() => {
+                          const req = (neg.requested_change || "").toLowerCase();
+                          const val = neg.proposed_value;
+                          if (req.includes("discount") || req.includes("percent")) return `${val}%`;
+                          if (req.includes("price") || req.includes("amount") || req.includes("total")) return `$${val}`;
+                          return val;
+                        })()}</strong>
                       </td>
                       <td>
                         <span className={`badge ${statusBadge}`}>{neg.status}</span>

@@ -14,6 +14,28 @@ import {
   RotateCcw,
 } from "lucide-react";
 
+function formatNegotiationDisplay(neg) {
+  const req = (neg.requested_change || "").toLowerCase();
+  const isPercent = neg.field_type === "PERCENTAGE" || req.includes("discount") || req.includes("percent");
+  const isCurrency = neg.field_type === "CURRENCY" || req.includes("amount") || req.includes("price") || req.includes("total");
+
+  function fmt(val) {
+    if (val === null || val === undefined || val === "" || val === "N/A") return "N/A";
+    const num = parseFloat(val);
+    if (isNaN(num)) return val;
+    if (isPercent) return `${num.toFixed(1)}%`;
+    if (isCurrency) return `$${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return num.toString();
+  }
+
+  const label = req === "discount_percent" ? "Discount" : req === "total_amount" ? "Target Price" : (req === "quantity" ? "Quantity" : neg.requested_change);
+  return {
+    label,
+    prev: fmt(neg.previous_value),
+    prop: fmt(neg.proposed_value),
+  };
+}
+
 function getCustomerOrderStatus(order) {
   if (!order) return "CONFIRMED";
   const status = (order.status || "").toUpperCase();
@@ -461,7 +483,14 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                         >
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.3rem" }}>
                             <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>
-                              Requested: <strong>{neg.requested_change}</strong> from <code>{neg.previous_value}%</code> to <code>{neg.proposed_value}%</code>
+                              {(() => {
+                                const d = formatNegotiationDisplay(neg);
+                                return (
+                                  <>
+                                    Requested: <strong>{d.label}</strong> from <code>{d.prev}</code> to <code>{d.prop}</code>
+                                  </>
+                                );
+                              })()}
                             </span>
                             <span className={`badge ${statusBadge}`}>{neg.status}</span>
                           </div>
@@ -841,19 +870,18 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                   onChange={(e) => setRequestedChange(e.target.value)}
                 >
                   <option value="discount_percent">Discount Percentage (%)</option>
-                  <option value="total_amount">Total Target Price ($)</option>
-                  <option value="payment_terms">Payment Terms / Scope</option>
+                  <option value="quantity">Order Quantity (Units)</option>
                 </select>
               </div>
 
               <div className="form-group">
                 <label className="form-label">
-                  Proposed Value {requestedChange === "discount_percent" ? "(e.g., 12 for 12%)" : "(e.g., 2800)"}
+                  Proposed Value {requestedChange === "discount_percent" ? "(e.g., 12 for 12%)" : "(e.g., 15 units)"}
                 </label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder={requestedChange === "discount_percent" ? "12.0" : "2800.00"}
+                  placeholder={requestedChange === "discount_percent" ? "12.0" : "15"}
                   value={proposedValue}
                   onChange={(e) => setProposedValue(e.target.value)}
                   required
