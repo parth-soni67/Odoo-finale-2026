@@ -227,3 +227,11 @@ def test_signup_then_login_flow(client: TestClient):
     assert "access_token" in token_data
     assert token_data["user"]["email"] == unique_email
     assert token_data["user"]["role"] == "CUSTOMER"
+
+
+def test_direct_register_and_signup_routes_serve_spa(client: TestClient):
+    """Verifies that direct browser navigation to /register, /signup, and /login serves the SPA (no 404 Not Found)."""
+    for route in ["/register", "/signup", "/login"]:
+        resp = client.get(route)
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers.get("content-type", "")

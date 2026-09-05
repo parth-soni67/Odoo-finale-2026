@@ -113,6 +113,23 @@ def demo_ui():
     return FileResponse(demo_file, media_type="text/html")
 
 
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist"))
+if os.path.isdir(frontend_dist):
+    from fastapi.staticfiles import StaticFiles
+    assets_dir = os.path.join(frontend_dist, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="spa_assets")
+
+    @app.get("/register")
+    @app.get("/signup")
+    @app.get("/login")
+    def serve_auth_spa():
+        index_file = os.path.join(frontend_dist, "index.html")
+        if os.path.isfile(index_file):
+            return FileResponse(index_file, media_type="text/html")
+        return FileResponse(os.path.join(os.path.dirname(__file__), "static", "demo.html"), media_type="text/html")
+
+
 @app.get("/")
 def root():
     return {
