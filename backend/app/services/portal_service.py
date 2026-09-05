@@ -80,6 +80,7 @@ class PortalService:
             negotiations_data.append({
                 "id": neg.id,
                 "requested_change": neg.requested_change,
+                "field_type": neg.field_type,
                 "previous_value": neg.previous_value,
                 "proposed_value": neg.proposed_value,
                 "status": neg.status.value,
@@ -134,9 +135,9 @@ class PortalService:
 
         audit = AuditLog(
             user_id=current_user.id,
-            entity_type="QUOTE",
+            entity_type="Quote",
             entity_id=quote.id,
-            action="CONFIRM",
+            action="CUSTOMER_CONFIRMED",
             old_value=json.dumps({"status": "APPROVED"}),
             new_value=json.dumps({"status": "ACCEPTED"}),
         )

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models.approval import Approval, ApprovalStatus, ApprovalType
 from app.models.quote import Quote, QuoteStatus
+from app.models.negotiation import Negotiation, NegotiationStatus
 from app.models.user import User, Role
 from app.services.audit_service import audit_service
 
@@ -175,6 +176,29 @@ class ApprovalService:
         if action_upper == "REJECT":
             target_approval.status = ApprovalStatus.REJECTED
             quote.status = QuoteStatus.REJECTED
+            quote.requires_approval = False
+
+            # Mark any pending negotiations as REJECTED without modifying commercial terms
+            pending_negs = (
+                db.query(Negotiation)
+                .filter(
+                    Negotiation.quote_id == quote_id,
+                    Negotiation.status == NegotiationStatus.PENDING,
+                )
+                .all()
+            )
+            for neg in pending_negs:
+                neg.status = NegotiationStatus.REJECTED
+                neg.resolved_at = datetime.now(timezone.utc)
+                audit_service.log_event(
+                    db=db,
+                    entity_type="NEGOTIATION",
+                    entity_id=neg.id,
+                    action="NEGOTIATION_REJECTED",
+                    user_id=approver.id,
+                    old_value={"status": "PENDING"},
+                    new_value={"status": "REJECTED", "comments": comments},
+                )
 
             db.commit()
             db.refresh(target_approval)
@@ -227,6 +251,47 @@ class ApprovalService:
 
         if remaining_pending == 0:
             quote.status = QuoteStatus.APPROVED
+            quote.requires_approval = False
+
+            # Automatically resolve any pending negotiations and apply negotiated terms
+            pending_negs = (
+                db.query(Negotiation)
+                .filter(
+                    Negotiation.quote_id == quote_id,
+                    Negotiation.status == NegotiationStatus.PENDING,
+                )
+                .all()
+            )
+            for neg in pending_negs:
+                neg.status = NegotiationStatus.APPROVED
+                neg.resolved_at = datetime.now(timezone.utc)
+                if any(k in neg.requested_change.lower() for k in ("discount", "percent", "%")):
+                    try:
+                        new_pct = float(neg.proposed_value)
+                        total_sub = 0.0
+                        total_disc = 0.0
+                        for line in quote.lines:
+                            line.discount_percent = new_pct
+                            line.discount_amount = round(line.unit_price * line.quantity * (new_pct / 100.0), 2)
+                            line.line_total = round((line.unit_price * line.quantity) - line.discount_amount, 2)
+                            total_sub += (line.unit_price * line.quantity)
+                            total_disc += line.discount_amount
+                        quote.subtotal = round(total_sub, 2)
+                        quote.total_discount = round(total_disc, 2)
+                        quote.total_amount = round(total_sub - total_disc, 2)
+                    except Exception:
+                        pass
+
+                audit_service.log_event(
+                    db=db,
+                    entity_type="NEGOTIATION",
+                    entity_id=neg.id,
+                    action="NEGOTIATION_APPROVED",
+                    user_id=approver.id,
+                    old_value={"status": "PENDING"},
+                    new_value={"status": "APPROVED", "comments": comments},
+                )
+
             db.flush()
             audit_service.log_event(
                 db=db,

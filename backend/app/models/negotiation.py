@@ -28,3 +28,12 @@ class Negotiation(Base):
     # Relationships
     quote = relationship("Quote", back_populates="negotiations")
     customer = relationship("Customer", back_populates="negotiations")
+
+    @property
+    def field_type(self) -> str:
+        req = (self.requested_change or "").lower()
+        if any(k in req for k in ("discount", "percent", "%")):
+            return "PERCENTAGE"
+        if any(k in req for k in ("price", "amount", "total")):
+            return "CURRENCY"
+        return "NUMBER"

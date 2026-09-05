@@ -19,6 +19,7 @@ class NegotiationResponse(NegotiationBase):
     quote_id: int
     customer_id: int
     status: NegotiationStatus
+    field_type: Optional[str] = "PERCENTAGE"
     created_at: datetime
     resolved_at: Optional[datetime] = None
 

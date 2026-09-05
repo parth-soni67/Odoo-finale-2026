@@ -2,14 +2,17 @@ import json
 from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import func
 from fastapi import HTTPException, status
+
 from app.models.negotiation import Negotiation, NegotiationStatus
 from app.models.quote import Quote, QuoteStatus
-from app.models.audit import AuditLog
+from app.models.approval import Approval, ApprovalType, ApprovalStatus
+from app.models.customer import Customer
 from app.models.user import User, Role
 from app.schemas.negotiation import NegotiationCreate
 from app.services.customer_service import customer_service
+from app.services.discount_service import discount_service
+from app.services.audit_service import audit_service
 
 
 class NegotiationService:
@@ -35,46 +38,294 @@ class NegotiationService:
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail={"code": "FORBIDDEN", "message": "You can only request negotiations for your own quotes"},
                 )
+        else:
+            customer = quote.customer or db.query(Customer).filter(Customer.id == quote.customer_id).first()
 
-        # Infer previous value if not provided
+        # Check quote state
+        if quote.status in (QuoteStatus.CANCELLED, QuoteStatus.REJECTED):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "INVALID_QUOTE_STATUS", "message": f"Cannot negotiate on a quote in {quote.status.value} status."},
+            )
+
+        # 1. Validate requested field
+        raw_change = (neg_in.requested_change or "").strip()
+        change_lower = raw_change.lower()
+
+        # Reject arbitrary/unsupported fields like total_amount
+        if change_lower in ("total_amount", "price", "target_price", "total", "total amount"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "INVALID_NEGOTIATION_FIELD",
+                    "message": "total_amount cannot be directly negotiated. Request a supported commercial field such as discount_percent.",
+                },
+            )
+
+        supported_fields = ("discount_percent", "discount", "discount %", "quantity", "qty")
+        if change_lower not in supported_fields:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "INVALID_NEGOTIATION_FIELD",
+                    "message": f"{raw_change} cannot be directly negotiated. Request a supported commercial field such as discount_percent.",
+                },
+            )
+
+        # 2. Validate proposed value
+        is_discount = any(k in change_lower for k in ("discount", "percent", "%"))
+        is_qty = any(k in change_lower for k in ("quantity", "qty"))
+
+        if is_discount:
+            canonical_field = "discount_percent"
+            try:
+                proposed_val_float = float(neg_in.proposed_value)
+            except (ValueError, TypeError):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"code": "INVALID_VALUE", "message": "Proposed discount must be a valid numeric percentage between 0 and 100."},
+                )
+            if proposed_val_float < 0.0 or proposed_val_float > 100.0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"code": "INVALID_VALUE", "message": "Discount percent must be between 0.0 and 100.0."},
+                )
+            proposed_val_str = f"{proposed_val_float:.1f}"
+        elif is_qty:
+            canonical_field = "quantity"
+            try:
+                proposed_val_int = int(neg_in.proposed_value)
+            except (ValueError, TypeError):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"code": "INVALID_VALUE", "message": "Proposed quantity must be a positive integer."},
+                )
+            if proposed_val_int <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"code": "INVALID_VALUE", "message": "Quantity must be greater than 0."},
+                )
+            proposed_val_str = str(proposed_val_int)
+        else:
+            canonical_field = raw_change
+            proposed_val_str = str(neg_in.proposed_value).strip()
+
+        # 3. Duplicate Negotiation Prevention (Idempotency)
+        existing_pending = (
+            db.query(Negotiation)
+            .filter(
+                Negotiation.quote_id == quote.id,
+                Negotiation.status == NegotiationStatus.PENDING,
+                Negotiation.requested_change == canonical_field,
+                Negotiation.proposed_value == proposed_val_str,
+            )
+            .first()
+        )
+        if existing_pending:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "DUPLICATE_NEGOTIATION",
+                    "message": f"An identical negotiation request is already pending for this quote (Negotiation #{existing_pending.id}).",
+                },
+            )
+
+        # 4. Infer/calculate previous value
         prev_val = neg_in.previous_value
         if not prev_val:
-            if neg_in.requested_change.lower() in ("discount", "discount_percent", "discount %"):
-                # Average or max discount on lines
-                if quote.lines:
-                    prev_val = str(round(max(l.discount_percent for l in quote.lines), 2))
-                else:
-                    prev_val = "0.0"
-            elif neg_in.requested_change.lower() in ("price", "total_amount"):
-                prev_val = str(quote.total_amount)
+            if is_discount:
+                current_discount = round((quote.total_discount / quote.subtotal * 100.0), 2) if quote.subtotal > 0 else 0.0
+                prev_val = f"{current_discount:.1f}"
+            elif is_qty:
+                prev_val = str(sum(l.quantity for l in quote.lines))
             else:
-                prev_val = "N/A"
+                prev_val = "0.0"
 
-        negotiation = Negotiation(
-            quote_id=quote.id,
-            customer_id=quote.customer_id,
-            requested_change=neg_in.requested_change,
-            previous_value=prev_val,
-            proposed_value=neg_in.proposed_value,
-            status=NegotiationStatus.PENDING,
-        )
-        db.add(negotiation)
-        db.commit()
-        db.refresh(negotiation)
+        # 5. Evaluate Quote-Level Governance & Margin Floor
+        gov = discount_service.calculate_quote_max_permissible_discount(db, quote)
+        max_permissible = gov["quote_max_permissible_discount"]
 
-        # Audit log
-        audit = AuditLog(
-            user_id=current_user.id,
-            entity_type="NEGOTIATION",
-            entity_id=negotiation.id,
-            action="CREATE",
-            old_value=prev_val,
-            new_value=neg_in.proposed_value,
-        )
-        db.add(audit)
-        db.commit()
+        # Check if proposed discount is within permissible governance
+        is_within_governance = is_discount and (proposed_val_float <= max_permissible)
 
-        return negotiation
+        if is_within_governance:
+            # DIRECT ACCEPTANCE RULE:
+            # No manager approval, no finance approval
+            # Recalculate quote lines & totals
+            # Mark negotiation as ACCEPTED/auto-approved
+            negotiation = Negotiation(
+                quote_id=quote.id,
+                customer_id=quote.customer_id,
+                requested_change=canonical_field,
+                previous_value=prev_val,
+                proposed_value=proposed_val_str,
+                status=NegotiationStatus.ACCEPTED,
+                resolved_at=datetime.now(timezone.utc),
+            )
+            db.add(negotiation)
+            db.flush()
+
+            old_amount = quote.total_amount
+            old_discount = quote.total_discount
+            total_subtotal = 0.0
+            total_discount = 0.0
+
+            for line in quote.lines:
+                line.discount_percent = proposed_val_float
+                line.discount_amount = round(line.unit_price * line.quantity * (proposed_val_float / 100.0), 2)
+                line.line_total = round((line.unit_price * line.quantity) - line.discount_amount, 2)
+                total_subtotal += (line.unit_price * line.quantity)
+                total_discount += line.discount_amount
+
+            quote.subtotal = round(total_subtotal, 2)
+            quote.total_discount = round(total_discount, 2)
+            quote.total_amount = round(total_subtotal - total_discount, 2)
+
+            # Re-evaluate risk
+            risk_eval = discount_service.evaluate_quote_risk(db, quote)
+            quote.risk_score = risk_eval["risk_score"]
+            quote.status = QuoteStatus.APPROVED
+            quote.requires_approval = False
+
+            # Clear any pending approvals since auto-accepted within governance
+            existing_approvals = db.query(Approval).filter(
+                Approval.quote_id == quote.id,
+                Approval.status == ApprovalStatus.PENDING,
+            ).all()
+            for app in existing_approvals:
+                app.status = ApprovalStatus.APPROVED
+                app.resolved_at = datetime.now(timezone.utc)
+                app.comments = "Auto-approved: Negotiation within permissible discount governance"
+
+            # Audit trail
+            audit_service.log_event(
+                db=db,
+                entity_type="NEGOTIATION",
+                entity_id=negotiation.id,
+                action="NEGOTIATION_AUTO_APPROVED",
+                user_id=current_user.id,
+                old_value={"status": "PENDING", "requested_change": canonical_field, "previous_value": prev_val},
+                new_value={"status": "ACCEPTED", "proposed_value": proposed_val_str, "max_permissible": max_permissible},
+            )
+            audit_service.log_event(
+                db=db,
+                entity_type="Quote",
+                entity_id=quote.id,
+                action="QUOTE_REVISED",
+                user_id=current_user.id,
+                old_value={"total_amount": old_amount, "total_discount": old_discount},
+                new_value={"total_amount": quote.total_amount, "total_discount": quote.total_discount, "status": quote.status.value},
+            )
+            db.commit()
+            db.refresh(negotiation)
+            return negotiation
+
+        else:
+            # APPROVAL REQUIRED RULE:
+            # Exceeds governance!
+            # Quote enters PENDING_APPROVAL
+            # Negotiation enters PENDING
+            # Commercial terms of quote REMAIN UNTOUCHED until approved!
+            negotiation = Negotiation(
+                quote_id=quote.id,
+                customer_id=quote.customer_id,
+                requested_change=canonical_field,
+                previous_value=prev_val,
+                proposed_value=proposed_val_str,
+                status=NegotiationStatus.PENDING,
+            )
+            db.add(negotiation)
+            db.flush()
+
+            quote.status = QuoteStatus.PENDING_APPROVAL
+            quote.requires_approval = True
+            quote.risk_score = max(quote.risk_score, 45.0)
+
+            # Ensure MANAGER Approval record is created/set to PENDING
+            mgr_app = (
+                db.query(Approval)
+                .filter(
+                    Approval.quote_id == quote.id,
+                    Approval.approval_type == ApprovalType.MANAGER,
+                )
+                .first()
+            )
+            reason_msg = f"Customer requested discount of {proposed_val_str}% exceeds permissible governance maximum of {max_permissible:.1f}%"
+            if mgr_app:
+                mgr_app.status = ApprovalStatus.PENDING
+                mgr_app.comments = None
+                mgr_app.resolved_at = None
+                mgr_app.reason = reason_msg
+            else:
+                mgr_app = Approval(
+                    quote_id=quote.id,
+                    approval_type=ApprovalType.MANAGER,
+                    status=ApprovalStatus.PENDING,
+                    reason=reason_msg,
+                )
+                db.add(mgr_app)
+
+            # Check if FINANCE approval is also required (e.g. proposed > 30% or margin floor breach)
+            requires_fin = False
+            fin_reasons = []
+            if is_discount:
+                if proposed_val_float > 30.0:
+                    requires_fin = True
+                    fin_reasons.append(f"Requested discount {proposed_val_float:.1f}% exceeds 30.0% high-risk threshold")
+                # Check if any line has selling price below cost price with proposed discount
+                for l_detail in gov["lines"]:
+                    if l_detail.get("cost_price"):
+                        discounted_p = l_detail["unit_price"] * (1.0 - (proposed_val_float / 100.0))
+                        if discounted_p < l_detail["cost_price"]:
+                            requires_fin = True
+                            fin_reasons.append(f"Line '{l_detail['product_name']}' selling price (${discounted_p:.2f}) drops below cost (${l_detail['cost_price']:.2f})")
+
+            if requires_fin:
+                fin_app = (
+                    db.query(Approval)
+                    .filter(
+                        Approval.quote_id == quote.id,
+                        Approval.approval_type == ApprovalType.FINANCE,
+                    )
+                    .first()
+                )
+                fin_reason_msg = f"Finance review required: {'; '.join(fin_reasons)}"
+                if fin_app:
+                    fin_app.status = ApprovalStatus.PENDING
+                    fin_app.comments = None
+                    fin_app.resolved_at = None
+                    fin_app.reason = fin_reason_msg
+                else:
+                    fin_app = Approval(
+                        quote_id=quote.id,
+                        approval_type=ApprovalType.FINANCE,
+                        status=ApprovalStatus.PENDING,
+                        reason=fin_reason_msg,
+                    )
+                    db.add(fin_app)
+
+            # Audit logs
+            audit_service.log_event(
+                db=db,
+                entity_type="NEGOTIATION",
+                entity_id=negotiation.id,
+                action="NEGOTIATION_REQUESTED",
+                user_id=current_user.id,
+                old_value={"status": "DRAFT", "requested_change": canonical_field, "previous_value": prev_val},
+                new_value={"status": "PENDING", "proposed_value": proposed_val_str, "max_permissible": max_permissible},
+            )
+            audit_service.log_event(
+                db=db,
+                entity_type="Approval",
+                entity_id=mgr_app.id,
+                action="APPROVAL_REQUESTED",
+                user_id=current_user.id,
+                new_value={"approval_type": "MANAGER", "reason": reason_msg},
+            )
+
+            db.commit()
+            db.refresh(negotiation)
+            return negotiation
 
     def get_negotiations_for_quote(
         self, db: Session, current_user: User, quote_id: int
@@ -150,33 +401,31 @@ class NegotiationService:
             }
 
             # Apply negotiated value if discount_percent
-            try:
-                if any(k in negotiation.requested_change.lower() for k in ("discount", "percent", "%")):
+            if any(k in negotiation.requested_change.lower() for k in ("discount", "percent", "%")):
+                try:
                     new_discount_pct = float(negotiation.proposed_value)
                     total_subtotal = 0.0
                     total_discount = 0.0
 
                     for line in quote.lines:
                         line.discount_percent = new_discount_pct
-                        line.discount_amount = line.unit_price * line.quantity * (new_discount_pct / 100.0)
-                        line.line_total = (line.unit_price * line.quantity) - line.discount_amount
+                        line.discount_amount = round(line.unit_price * line.quantity * (new_discount_pct / 100.0), 2)
+                        line.line_total = round((line.unit_price * line.quantity) - line.discount_amount, 2)
                         total_subtotal += (line.unit_price * line.quantity)
                         total_discount += line.discount_amount
 
-                    quote.subtotal = total_subtotal
-                    quote.total_discount = total_discount
-                    quote.total_amount = total_subtotal - total_discount
-            except Exception:
-                pass  # Fall back to updating approval status without numeric line recalculation
+                    quote.subtotal = round(total_subtotal, 2)
+                    quote.total_discount = round(total_discount, 2)
+                    quote.total_amount = round(total_subtotal - total_discount, 2)
+                except Exception:
+                    pass
 
             # RE-APPROVAL TRIGGER:
-            # When negotiation changes financial parameters, quote enters PENDING_APPROVAL and requires approval
+            # Quote enters PENDING_APPROVAL and requires approval
             quote.status = QuoteStatus.PENDING_APPROVAL
             quote.requires_approval = True
             quote.risk_score = max(quote.risk_score, 45.0)
 
-            # Ensure an active Approval record exists in PENDING state for reviewer
-            from app.models.approval import Approval, ApprovalType, ApprovalStatus
             mgr_app = (
                 db.query(Approval)
                 .filter(
@@ -199,32 +448,30 @@ class NegotiationService:
                 )
                 db.add(mgr_app)
 
-            # Audit quote change
-            quote_audit = AuditLog(
-                user_id=current_user.id,
-                entity_type="QUOTE",
+            audit_service.log_event(
+                db=db,
+                entity_type="Quote",
                 entity_id=quote.id,
-                action="RE_EVALUATE_APPROVAL",
-                old_value=json.dumps(old_quote_state),
-                new_value=json.dumps({
+                action="QUOTE_REVISED",
+                user_id=current_user.id,
+                old_value=old_quote_state,
+                new_value={
                     "status": quote.status.value,
                     "total_amount": quote.total_amount,
                     "requires_approval": quote.requires_approval,
                     "trigger": f"Negotiation #{negotiation.id} accepted",
-                }),
+                },
             )
-            db.add(quote_audit)
 
-        # Audit negotiation resolution
-        neg_audit = AuditLog(
-            user_id=current_user.id,
+        audit_service.log_event(
+            db=db,
             entity_type="NEGOTIATION",
             entity_id=negotiation.id,
-            action="APPROVE",
-            old_value=json.dumps({"status": "PENDING"}),
-            new_value=json.dumps({"status": "APPROVED", "comments": comments}),
+            action="NEGOTIATION_APPROVED",
+            user_id=current_user.id,
+            old_value={"status": "PENDING"},
+            new_value={"status": "APPROVED", "comments": comments},
         )
-        db.add(neg_audit)
 
         db.commit()
         db.refresh(negotiation)
@@ -259,15 +506,45 @@ class NegotiationService:
         negotiation.status = NegotiationStatus.REJECTED
         negotiation.resolved_at = datetime.now(timezone.utc)
 
-        audit = AuditLog(
-            user_id=current_user.id,
+        # Ensure quote's original commercial terms remain UNTOUCHED
+        quote = db.query(Quote).filter(Quote.id == negotiation.quote_id).first()
+        if quote:
+            # Resolve any pending approvals that were created specifically for this negotiation
+            neg_approvals = (
+                db.query(Approval)
+                .filter(
+                    Approval.quote_id == quote.id,
+                    Approval.status == ApprovalStatus.PENDING,
+                )
+                .all()
+            )
+            for app in neg_approvals:
+                if "Negotiation" in (app.reason or "") or "exceeds permissible" in (app.reason or ""):
+                    app.status = ApprovalStatus.REJECTED
+                    app.resolved_at = datetime.now(timezone.utc)
+                    app.comments = comments or "Negotiation rejected"
+
+            remaining_pending = (
+                db.query(Approval)
+                .filter(
+                    Approval.quote_id == quote.id,
+                    Approval.status == ApprovalStatus.PENDING,
+                )
+                .count()
+            )
+            if remaining_pending == 0:
+                quote.status = QuoteStatus.APPROVED
+                quote.requires_approval = False
+
+        audit_service.log_event(
+            db=db,
             entity_type="NEGOTIATION",
             entity_id=negotiation.id,
-            action="REJECT",
-            old_value=json.dumps({"status": "PENDING"}),
-            new_value=json.dumps({"status": "REJECTED", "comments": comments}),
+            action="NEGOTIATION_REJECTED",
+            user_id=current_user.id,
+            old_value={"status": "PENDING"},
+            new_value={"status": "REJECTED", "comments": comments},
         )
-        db.add(audit)
 
         db.commit()
         db.refresh(negotiation)

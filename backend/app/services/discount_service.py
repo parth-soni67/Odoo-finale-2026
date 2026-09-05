@@ -63,6 +63,80 @@ class DiscountService:
         allowed_discount = min(product_limit, tier_effective_limit)
         return round(allowed_discount, 2)
 
+    def calculate_quote_max_permissible_discount(
+        self, db: Session, quote: Quote
+    ) -> Dict[str, Any]:
+        """Calculates the value-weighted maximum permissible discount for the entire quotation,
+        enforcing product discount caps, category rules, customer tier, margin floor,
+        and customer discount ceiling.
+        """
+        customer = quote.customer
+        if not customer:
+            customer = db.query(Customer).filter(Customer.id == quote.customer_id).first()
+
+        total_gross = 0.0
+        max_discount_value = 0.0
+        line_details = []
+
+        for line in quote.lines:
+            product = line.product
+            if not product:
+                product = db.query(Product).filter(Product.id == line.product_id).first()
+            if not product:
+                continue
+
+            unit_price = float(line.unit_price)
+            quantity = int(line.quantity)
+            line_gross = round(unit_price * quantity, 2)
+            total_gross += line_gross
+
+            # 1. Line-level governance cap
+            gov_cap = self.get_effective_line_limit(db, customer, product, quantity)
+
+            # 2. Margin floor cap (discounted unit price >= product cost price)
+            if product.cost_price and float(product.cost_price) > 0 and unit_price > 0:
+                cost = float(product.cost_price)
+                margin_cap = max(0.0, ((unit_price - cost) / unit_price) * 100.0)
+            else:
+                margin_cap = 100.0
+
+            line_max_allowed = max(0.0, min(gov_cap, margin_cap))
+            line_discount_val = line_gross * (line_max_allowed / 100.0)
+            max_discount_value += line_discount_val
+
+            line_details.append({
+                "line_id": line.id,
+                "product_id": product.id,
+                "product_name": product.name,
+                "quantity": quantity,
+                "unit_price": unit_price,
+                "cost_price": float(product.cost_price) if product.cost_price else None,
+                "line_gross": line_gross,
+                "governance_cap": gov_cap,
+                "margin_floor_cap": round(margin_cap, 2),
+                "line_max_allowed_discount": round(line_max_allowed, 2),
+                "line_max_discount_value": round(line_discount_val, 2),
+            })
+
+        if total_gross > 0:
+            weighted_max_percent = (max_discount_value / total_gross) * 100.0
+        else:
+            weighted_max_percent = 0.0
+
+        cust_ceiling = float(customer.discount_ceiling if customer and customer.discount_ceiling is not None else 10.0)
+        # Apply customer overall discount ceiling constraint
+        quote_max_permissible = min(weighted_max_percent, cust_ceiling)
+        quote_max_permissible = round(quote_max_permissible, 2)
+
+        return {
+            "quote_subtotal": round(total_gross, 2),
+            "max_discount_value": round(max_discount_value, 2),
+            "weighted_max_discount_percent": round(weighted_max_percent, 2),
+            "customer_ceiling": cust_ceiling,
+            "quote_max_permissible_discount": quote_max_permissible,
+            "lines": line_details,
+        }
+
     def evaluate_quote_risk(self, db: Session, quote: Quote) -> Dict[str, Any]:
         """Evaluates line-level and quote-level discount risks deterministically.
 
@@ -196,6 +270,9 @@ class DiscountService:
 
         requires_approval = requires_manager_approval or requires_finance_approval
 
+        gov = self.calculate_quote_max_permissible_discount(db, quote)
+        quote_max_permissible = gov["quote_max_permissible_discount"]
+
         return {
             "risk_score": float(risk_score),
             "requires_approval": requires_approval,
@@ -204,6 +281,7 @@ class DiscountService:
             "violations": violations,
             "reasons": reasons,
             "quote_discount_percent": quote_discount_pct,
+            "quote_max_permissible_discount": quote_max_permissible,
         }
 
 
