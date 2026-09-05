@@ -118,12 +118,16 @@ def get_portal_invoices(
     for inv in invoices:
         amt = getattr(inv, "total_amount", getattr(inv, "amount", 0.0))
         order_num = inv.order.order_number if getattr(inv, "order", None) else (f"ORD-{inv.order_id}" if inv.order_id else None)
+        sub_name = inv.subscription.name if getattr(inv, "subscription", None) else None
         results.append({
             "id": inv.id,
             "invoice_number": inv.invoice_number,
             "order_id": inv.order_id,
             "order_number": order_num,
             "subscription_id": inv.subscription_id,
+            "subscription_name": sub_name,
+            "period_start": inv.period_start.isoformat() if inv.period_start else None,
+            "period_end": inv.period_end.isoformat() if inv.period_end else None,
             "status": inv.status.value if hasattr(inv.status, "value") else str(inv.status),
             "subtotal": getattr(inv, "subtotal", amt) or amt,
             "discount": getattr(inv, "discount", 0.0) or 0.0,
@@ -147,4 +151,38 @@ def get_portal_subscriptions(
     if current_user.role in (Role.FINANCE, Role.ADMIN):
         return db.query(Subscription).order_by(Subscription.id.desc()).all()
     return portal_service.get_customer_subscriptions(db, current_user)
+
+
+@router.get("/subscriptions/{subscription_id}", response_model=SubscriptionResponse)
+def get_portal_subscription_detail(
+    subscription_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.CUSTOMER, Role.FINANCE, Role.ADMIN)),
+):
+    """Retrieve details of a single subscription with customer tenant isolation."""
+    from app.services.customer_service import customer_service
+    sub = db.query(Subscription).filter(Subscription.id == subscription_id).first()
+    if not sub:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "NOT_FOUND", "message": f"Subscription {subscription_id} not found"},
+        )
+    if current_user.role == Role.CUSTOMER:
+        customer = customer_service.get_customer_for_user(db, current_user)
+        if sub.customer_id != customer.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "FORBIDDEN", "message": "Access denied to this subscription"},
+            )
+    return sub
+
+
+@router.get("/subscriptions/{subscription_id}/billing-history")
+def get_portal_subscription_billing_history(
+    subscription_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.CUSTOMER, Role.FINANCE, Role.ADMIN)),
+):
+    """Retrieve billing cycle history for a subscription with strict tenant isolation."""
+    return portal_service.get_subscription_billing_history(db, current_user, subscription_id=subscription_id)
 

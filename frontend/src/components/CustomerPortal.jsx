@@ -18,8 +18,22 @@ import {
   Eye,
   CreditCard,
   X,
-  ExternalLink,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
+
+function formatDate(dateVal) {
+  if (!dateVal) return "—";
+  try {
+    return new Date(dateVal).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return String(dateVal);
+  }
+}
 
 function formatNegotiationDisplay(neg) {
   const req = (neg.requested_change || "").toLowerCase();
@@ -168,8 +182,10 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
   const [portalSubscriptions, setPortalSubscriptions] = useState([]);
   const [billingLoading, setBillingLoading] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [invoiceModalLoading, setInvoiceModalLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [expandedSubIds, setExpandedSubIds] = useState(new Set());
+  const [subBillingHistories, setSubBillingHistories] = useState({});
+  const [subHistoryLoading, setSubHistoryLoading] = useState({});
 
   useEffect(() => {
     if (activeSubTab && activeSubTab !== activeTab) {
@@ -206,6 +222,30 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
       // ignore
     } finally {
       setBillingLoading(false);
+    }
+  }
+
+  async function toggleExpandSubscription(subId) {
+    setExpandedSubIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(subId)) {
+        next.delete(subId);
+      } else {
+        next.add(subId);
+      }
+      return next;
+    });
+
+    if (!subBillingHistories[subId]) {
+      setSubHistoryLoading((prev) => ({ ...prev, [subId]: true }));
+      try {
+        const data = await api.getSubscriptionBillingHistory(subId);
+        setSubBillingHistories((prev) => ({ ...prev, [subId]: data }));
+      } catch (err) {
+        console.error("Failed to load subscription billing history:", err);
+      } finally {
+        setSubHistoryLoading((prev) => ({ ...prev, [subId]: false }));
+      }
     }
   }
 
@@ -1309,13 +1349,12 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Invoice Number</th>
-                      <th>Date</th>
-                      <th>Order</th>
-                      <th>Type</th>
+                      <th>Invoice #</th>
+                      <th>Subscription</th>
+                      <th>Billing Period</th>
                       <th style={{ textAlign: "right" }}>Amount</th>
                       <th style={{ textAlign: "center" }}>Status</th>
-                      <th>Due Date</th>
+                      <th>Date</th>
                       <th style={{ textAlign: "center" }}>Actions</th>
                     </tr>
                   </thead>
@@ -1323,9 +1362,11 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                     {portalInvoices.map((inv) => {
                       const amt = inv.total_amount !== undefined ? inv.total_amount : inv.amount || 0;
                       const isPaid = inv.status === "PAID";
-                      const dateStr = inv.created_at ? new Date(inv.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-                      const dueStr = inv.due_date ? new Date(inv.due_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "30 Days";
-                      const orderDisplay = inv.order_number || (inv.order_id ? `ORD-${inv.order_id}` : "—");
+                      const dateStr = inv.created_at ? formatDate(inv.created_at) : "—";
+                      const subName = inv.subscription_name || (inv.subscription_id ? `Subscription #${inv.subscription_id}` : "—");
+                      const periodStr = (inv.period_start && inv.period_end)
+                        ? `${formatDate(inv.period_start)} → ${formatDate(inv.period_end)}`
+                        : (inv.billing_type === "RECURRING" ? "Recurring Cycle" : "One-Time");
 
                       return (
                         <tr key={inv.id}>
@@ -1334,18 +1375,11 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                               {inv.invoice_number}
                             </strong>
                           </td>
-                          <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                            {dateStr}
+                          <td style={{ fontSize: "0.85rem", color: "var(--text-primary)", fontWeight: 500 }}>
+                            {subName}
                           </td>
-                          <td>
-                            <span style={{ fontSize: "0.82rem", color: "var(--text-muted)", fontFamily: "monospace" }}>
-                              {orderDisplay}
-                            </span>
-                          </td>
-                          <td>
-                            <span className={`badge ${inv.billing_type === "RECURRING" ? "badge-info" : "badge-neutral"}`} style={{ fontSize: "0.74rem" }}>
-                              {inv.billing_type === "RECURRING" ? "Recurring" : "One-Time"}
-                            </span>
+                          <td style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+                            {periodStr}
                           </td>
                           <td style={{ textAlign: "right", fontWeight: 700, fontSize: "0.92rem", color: "var(--text-primary)" }}>
                             ${Number(amt).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1356,7 +1390,7 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                             </span>
                           </td>
                           <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                            {dueStr}
+                            {dateStr}
                           </td>
                           <td style={{ textAlign: "center" }}>
                             <div style={{ display: "flex", gap: "0.35rem", justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
@@ -1408,11 +1442,11 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
             )}
           </div>
 
-          {/* 3. Subscriptions Section */}
+          {/* 3. Subscription History Section */}
           <div className="card">
             <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div className="card-title" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <Sparkles size={18} color="var(--primary)" /> Subscriptions & Entitlements
+                <Sparkles size={18} color="var(--primary)" /> Subscription History
               </div>
               <span className="badge badge-info">{portalSubscriptions.length} Subscriptions</span>
             </div>
@@ -1431,67 +1465,245 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                   <thead>
                     <tr>
                       <th>Product / Service</th>
+                      <th>Subscription Name</th>
                       <th>Status</th>
-                      <th>Duration</th>
+                      <th>Validity Type</th>
                       <th>Start Date</th>
                       <th>End Date</th>
                       <th>Billing Frequency</th>
-                      <th>Next Billing Date</th>
-                      <th style={{ textAlign: "center" }}>Invoices Generated</th>
+                      <th style={{ textAlign: "center" }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {portalSubscriptions.map((sub) => {
-                      const invoicesCount = portalInvoices.filter((i) => i.subscription_id === sub.id).length;
+                      const isExpanded = expandedSubIds.has(sub.id);
                       const isLifetime = sub.duration_mode === "LIFETIME";
-                      const startStr = sub.start_date ? new Date(sub.start_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "On Activation";
-                      const endStr = isLifetime ? "Never" : (sub.end_date ? new Date(sub.end_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Calculated");
-                      const nextBillStr = sub.next_billing_date ? new Date(sub.next_billing_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : (sub.status === "EXPIRED" ? "Expired" : "None");
+                      const startStr = sub.start_date ? formatDate(sub.start_date) : "On Activation";
+                      const endStr = isLifetime ? "Never" : (sub.end_date ? formatDate(sub.end_date) : "—");
+                      const frequencyStr = isLifetime || sub.billing_frequency === "NONE" ? "Included" : sub.billing_frequency;
+                      const nextBillStr = isLifetime ? "N/A" : (sub.status === "EXPIRED" ? "Expired" : (sub.next_billing_date ? formatDate(sub.next_billing_date) : "—"));
+                      const historyDetail = subBillingHistories[sub.id];
+                      const cycles = (historyDetail && historyDetail.billing_cycles) || sub.billing_cycles || [];
+                      const isLoadingHistory = subHistoryLoading[sub.id];
 
                       return (
-                        <tr key={sub.id}>
-                          <td>
-                            <div>
-                              <strong style={{ color: "var(--text-primary)" }}>{sub.name || "Software Entitlement"}</strong>
-                              {sub.order_id && (
-                                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                                  Order: ORD-{sub.order_id}
-                                </div>
+                        <React.Fragment key={sub.id}>
+                          <tr>
+                            <td>
+                              <strong style={{ color: "var(--text-primary)" }}>{sub.product_name || "—"}</strong>
+                            </td>
+                            <td>
+                              <div>
+                                <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{sub.name || "Software Entitlement"}</span>
+                                {(sub.order_number || sub.order_id) && (
+                                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontFamily: "monospace" }}>
+                                    Order: {sub.order_number || `ORD-${sub.order_id}`}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`badge ${sub.status === "ACTIVE" ? "badge-healthy" : (sub.status === "EXPIRED" ? "badge-high" : "badge-neutral")}`}>
+                                {sub.status}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: "0.85rem" }}>
+                              {isLifetime ? (
+                                <span style={{ fontWeight: 600, color: "var(--primary)" }}>Lifetime</span>
+                              ) : (
+                                `${sub.validity_value || 1} ${sub.validity_unit || "MONTHS"}`
                               )}
-                            </div>
-                          </td>
-                          <td>
-                            <span className={`badge ${sub.status === "ACTIVE" ? "badge-healthy" : "badge-neutral"}`}>
-                              {sub.status}
-                            </span>
-                          </td>
-                          <td style={{ fontSize: "0.85rem" }}>
-                            {isLifetime ? (
-                              <span style={{ fontWeight: 600, color: "var(--primary)" }}>Lifetime Access</span>
-                            ) : (
-                              `${sub.validity_value || 1} ${sub.validity_unit || "MONTHS"}`
-                            )}
-                          </td>
-                          <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                            {startStr}
-                          </td>
-                          <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                            {endStr}
-                          </td>
-                          <td>
-                            <span className={`badge ${sub.billing_frequency && sub.billing_frequency !== "NONE" ? "badge-info" : "badge-neutral"}`}>
-                              {sub.billing_frequency === "NONE" ? "Included" : sub.billing_frequency}
-                            </span>
-                          </td>
-                          <td style={{ fontSize: "0.85rem", fontWeight: 600, color: sub.next_billing_date ? "var(--primary)" : "var(--text-muted)" }}>
-                            {nextBillStr}
-                          </td>
-                          <td style={{ textAlign: "center" }}>
-                            <span className="badge badge-neutral" style={{ fontWeight: 700 }}>
-                              {invoicesCount}
-                            </span>
-                          </td>
-                        </tr>
+                            </td>
+                            <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                              {startStr}
+                            </td>
+                            <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                              {endStr}
+                            </td>
+                            <td>
+                              <span className={`badge ${frequencyStr !== "Included" ? "badge-info" : "badge-neutral"}`}>
+                                {frequencyStr}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => toggleExpandSubscription(sub.id)}
+                                style={{ padding: "0.3rem 0.65rem", fontSize: "0.78rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                              >
+                                {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                {isExpanded ? "Hide History" : "View History"}
+                              </button>
+                            </td>
+                          </tr>
+
+                          {/* Expanded Subscription Details & Billing Cycle History */}
+                          {isExpanded && (
+                            <tr>
+                              <td colSpan={8} style={{ padding: "1rem 1.25rem", backgroundColor: "var(--bg-subtle, #f8fafc)", borderBottom: "2px solid var(--border-subtle)" }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                                  {/* Panel 1: Subscription Details */}
+                                  <div style={{ background: "#ffffff", padding: "1rem", borderRadius: "var(--radius-sm, 6px)", border: "1px solid var(--border-subtle)" }}>
+                                    <h4 style={{ margin: "0 0 0.75rem", fontSize: "0.9rem", fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                                      <Sparkles size={14} color="var(--primary)" /> Subscription Details
+                                    </h4>
+                                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.75rem", fontSize: "0.82rem" }}>
+                                      <div>
+                                        <span style={{ color: "var(--text-muted)", display: "block", fontSize: "0.75rem" }}>Order ID</span>
+                                        <strong style={{ fontFamily: "monospace" }}>{sub.order_number || (sub.order_id ? `ORD-${sub.order_id}` : "—")}</strong>
+                                      </div>
+                                      <div>
+                                        <span style={{ color: "var(--text-muted)", display: "block", fontSize: "0.75rem" }}>Product</span>
+                                        <strong>{sub.product_name || "—"}</strong>
+                                      </div>
+                                      <div>
+                                        <span style={{ color: "var(--text-muted)", display: "block", fontSize: "0.75rem" }}>Subscription Name</span>
+                                        <strong>{sub.name}</strong>
+                                      </div>
+                                      <div>
+                                        <span style={{ color: "var(--text-muted)", display: "block", fontSize: "0.75rem" }}>Status</span>
+                                        <span className={`badge ${sub.status === "ACTIVE" ? "badge-healthy" : (sub.status === "EXPIRED" ? "badge-high" : "badge-neutral")}`} style={{ fontSize: "0.72rem" }}>
+                                          {sub.status}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span style={{ color: "var(--text-muted)", display: "block", fontSize: "0.75rem" }}>Validity Type</span>
+                                        <span>{isLifetime ? "Lifetime" : `${sub.validity_value || 1} ${sub.validity_unit || "MONTHS"}`}</span>
+                                      </div>
+                                      <div>
+                                        <span style={{ color: "var(--text-muted)", display: "block", fontSize: "0.75rem" }}>Start Date</span>
+                                        <span>{startStr}</span>
+                                      </div>
+                                      <div>
+                                        <span style={{ color: "var(--text-muted)", display: "block", fontSize: "0.75rem" }}>End Date</span>
+                                        <span>{endStr}</span>
+                                      </div>
+                                      <div>
+                                        <span style={{ color: "var(--text-muted)", display: "block", fontSize: "0.75rem" }}>Billing Frequency</span>
+                                        <span>{frequencyStr}</span>
+                                      </div>
+                                      <div>
+                                        <span style={{ color: "var(--text-muted)", display: "block", fontSize: "0.75rem" }}>Next Billing Date</span>
+                                        <span style={{ fontWeight: 600, color: sub.next_billing_date ? "var(--primary)" : "var(--text-muted)" }}>{nextBillStr}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Panel 2: Billing Cycle History */}
+                                  <div style={{ background: "#ffffff", padding: "1rem", borderRadius: "var(--radius-sm, 6px)", border: "1px solid var(--border-subtle)" }}>
+                                    <h4 style={{ margin: "0 0 0.75rem", fontSize: "0.9rem", fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                                      <Receipt size={14} color="var(--primary)" /> Billing Cycle History
+                                    </h4>
+
+                                    {isLifetime ? (
+                                      <div style={{ padding: "0.75rem 1rem", background: "var(--bg-surface-elevated, #f8fafc)", borderRadius: "var(--radius-sm, 4px)", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+                                        No recurring billing cycles for this lifetime entitlement.
+                                      </div>
+                                    ) : isLoadingHistory ? (
+                                      <div style={{ padding: "1rem", textAlign: "center", fontSize: "0.82rem", color: "var(--text-muted)" }}>
+                                        Loading billing cycles...
+                                      </div>
+                                    ) : cycles.length === 0 ? (
+                                      <div style={{ padding: "0.75rem 1rem", background: "var(--bg-surface-elevated, #f8fafc)", borderRadius: "var(--radius-sm, 4px)", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+                                        No recurring billing cycles recorded yet for this subscription.
+                                      </div>
+                                    ) : (
+                                      <div className="table-container" style={{ margin: 0, boxShadow: "none", border: "1px solid var(--border-subtle)" }}>
+                                        <table className="data-table" style={{ fontSize: "0.8rem" }}>
+                                          <thead>
+                                            <tr>
+                                              <th>Cycle #</th>
+                                              <th>Period Start → Period End</th>
+                                              <th>Invoice #</th>
+                                              <th>Invoice Date</th>
+                                              <th style={{ textAlign: "right" }}>Amount</th>
+                                              <th style={{ textAlign: "center" }}>Invoice Status</th>
+                                              <th style={{ textAlign: "center" }}>Payment Status</th>
+                                              <th style={{ textAlign: "center" }}>Actions</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {cycles.map((cyc) => {
+                                              const cycInvoice = portalInvoices.find((i) => i.id === cyc.invoice_id) || { id: cyc.invoice_id, invoice_number: cyc.invoice_number, status: cyc.invoice_status, total_amount: cyc.amount };
+                                              const isPaid = (cyc.payment_status || cyc.invoice_status) === "PAID";
+                                              const periodDisplay = (cyc.period_start && cyc.period_end)
+                                                ? `${formatDate(cyc.period_start)} → ${formatDate(cyc.period_end)}`
+                                                : "—";
+
+                                              return (
+                                                <tr key={cyc.cycle_number || cyc.invoice_id}>
+                                                  <td>
+                                                    <strong>Cycle {cyc.cycle_number}</strong>
+                                                  </td>
+                                                  <td style={{ color: "var(--text-secondary)" }}>
+                                                    {periodDisplay}
+                                                  </td>
+                                                  <td>
+                                                    <strong style={{ color: "var(--primary)", fontFamily: "monospace" }}>
+                                                      {cyc.invoice_number}
+                                                    </strong>
+                                                  </td>
+                                                  <td style={{ color: "var(--text-secondary)" }}>
+                                                    {formatDate(cyc.invoice_date)}
+                                                  </td>
+                                                  <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-primary)" }}>
+                                                    ${Number(cyc.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                  </td>
+                                                  <td style={{ textAlign: "center" }}>
+                                                    <span className={`badge ${cyc.invoice_status === "PAID" ? "badge-healthy" : (cyc.invoice_status === "OVERDUE" ? "badge-high" : "badge-info")}`} style={{ fontSize: "0.72rem" }}>
+                                                      {cyc.invoice_status}
+                                                    </span>
+                                                  </td>
+                                                  <td style={{ textAlign: "center" }}>
+                                                    <span className={`badge ${cyc.payment_status === "PAID" ? "badge-healthy" : "badge-neutral"}`} style={{ fontSize: "0.72rem" }}>
+                                                      {cyc.payment_status}
+                                                    </span>
+                                                  </td>
+                                                  <td style={{ textAlign: "center" }}>
+                                                    <div style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
+                                                      <button
+                                                        className="btn btn-secondary btn-sm"
+                                                        onClick={() => handleViewInvoice(cyc.invoice_id)}
+                                                        style={{ padding: "0.2rem 0.45rem", fontSize: "0.72rem" }}
+                                                        title="View Invoice"
+                                                      >
+                                                        <Eye size={12} /> View
+                                                      </button>
+                                                      <button
+                                                        className="btn btn-secondary btn-sm"
+                                                        onClick={() => handleDownloadPdf(cycInvoice)}
+                                                        disabled={actionLoadingId === `pdf-${cyc.invoice_id}`}
+                                                        style={{ padding: "0.2rem 0.45rem", fontSize: "0.72rem" }}
+                                                        title="Download PDF"
+                                                      >
+                                                        <Download size={12} /> PDF
+                                                      </button>
+                                                      {!isPaid && (
+                                                        <button
+                                                          className="btn btn-primary btn-sm"
+                                                          onClick={() => handlePayInvoice(cycInvoice)}
+                                                          disabled={actionLoadingId === `pay-${cyc.invoice_id}`}
+                                                          style={{ padding: "0.2rem 0.45rem", fontSize: "0.72rem" }}
+                                                          title="Pay Invoice"
+                                                        >
+                                                          <CreditCard size={12} /> Pay
+                                                        </button>
+                                                      )}
+                                                    </div>
+                                                  </td>
+                                                </tr>
+                                              );
+                                            })}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>

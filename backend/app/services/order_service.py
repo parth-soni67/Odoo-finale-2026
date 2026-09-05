@@ -150,7 +150,11 @@ class OrderService:
             if sub.billing_frequency in ("MONTHLY", "QUARTERLY", "YEARLY"):
                 existing_rec_inv = (
                     db.query(Invoice)
-                    .filter(Invoice.order_id == order.id, Invoice.billing_type == BillingType.RECURRING)
+                    .filter(
+                        Invoice.order_id == order.id,
+                        Invoice.subscription_id == sub.id,
+                        Invoice.billing_type == BillingType.RECURRING,
+                    )
                     .first()
                 )
                 if not existing_rec_inv:
@@ -376,7 +380,11 @@ class OrderService:
             if sub.billing_frequency in ("MONTHLY", "QUARTERLY", "YEARLY"):
                 existing_rec_inv = (
                     db.query(Invoice)
-                    .filter(Invoice.order_id == order.id, Invoice.billing_type == BillingType.RECURRING)
+                    .filter(
+                        Invoice.order_id == order.id,
+                        Invoice.subscription_id == sub.id,
+                        Invoice.billing_type == BillingType.RECURRING,
+                    )
                     .first()
                 )
                 if not existing_rec_inv:

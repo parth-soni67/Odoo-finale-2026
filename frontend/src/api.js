@@ -264,6 +264,10 @@ export const api = {
     return request(`/subscriptions/${id}`);
   },
 
+  async getSubscriptionBillingHistory(id) {
+    return request(`/subscriptions/${id}/billing-history`);
+  },
+
   // Deal Health
   async getDealHealth() {
     return request("/deal-health");

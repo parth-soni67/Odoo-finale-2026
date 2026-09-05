@@ -424,7 +424,16 @@ def get_subscription_detail(
     )),
 ):
     """Retrieve subscription details with customer isolation."""
-    sub = db.query(Subscription).filter(Subscription.id == subscription_id).first()
+    sub = (
+        db.query(Subscription)
+        .options(
+            joinedload(Subscription.product),
+            joinedload(Subscription.order),
+            joinedload(Subscription.invoices).joinedload(Invoice.payments),
+        )
+        .filter(Subscription.id == subscription_id)
+        .first()
+    )
     if not sub:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -433,3 +442,47 @@ def get_subscription_detail(
 
     check_subscription_access(db, sub, current_user)
     return sub
+
+
+@router.get("/subscriptions/{subscription_id}/billing-history")
+def get_subscription_billing_history_endpoint(
+    subscription_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(
+        Role.CUSTOMER, Role.FINANCE, Role.ADMIN, Role.SALES_REP, Role.SALES_MANAGER, Role.OPERATIONS
+    )),
+):
+    """Retrieve billing history cycles for a subscription with strict customer isolation."""
+    sub = (
+        db.query(Subscription)
+        .options(
+            joinedload(Subscription.product),
+            joinedload(Subscription.order),
+            joinedload(Subscription.invoices).joinedload(Invoice.payments),
+        )
+        .filter(Subscription.id == subscription_id)
+        .first()
+    )
+    if not sub:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "NOT_FOUND", "message": f"Subscription {subscription_id} not found"},
+        )
+
+    check_subscription_access(db, sub, current_user)
+    return {
+        "subscription_id": sub.id,
+        "subscription_name": sub.name,
+        "product_name": sub.product_name,
+        "order_id": sub.order_id,
+        "order_number": sub.order_number,
+        "status": sub.status.value if hasattr(sub.status, "value") else str(sub.status),
+        "duration_mode": sub.duration_mode,
+        "validity_value": sub.validity_value,
+        "validity_unit": sub.validity_unit,
+        "billing_frequency": sub.billing_frequency,
+        "start_date": sub.start_date.isoformat() if sub.start_date else None,
+        "end_date": sub.end_date.isoformat() if sub.end_date else None,
+        "next_billing_date": sub.next_billing_date.isoformat() if sub.next_billing_date else None,
+        "billing_cycles": sub.billing_cycles,
+    }

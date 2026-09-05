@@ -1,4 +1,5 @@
 import enum
+from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, Text, ForeignKey, DateTime, Enum
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -76,6 +77,60 @@ class Subscription(Base):
     product = relationship("Product", back_populates="subscriptions")
     invoices = relationship("Invoice", back_populates="subscription")
 
+    @property
+    def product_name(self):
+        if self.product:
+            return self.product.name
+        return self.name or "Subscription Service"
+
+    @property
+    def order_number(self):
+        if self.order:
+            return self.order.order_number
+        return f"ORD-{self.order_id}" if self.order_id else None
+
+    @property
+    def billing_cycles(self):
+        cycles = []
+        if (self.duration_mode or "").upper() == "LIFETIME" or (self.billing_frequency or "").upper() in ("NONE", ""):
+            return cycles
+        if not self.invoices:
+            return cycles
+        cycle_invoices = [i for i in self.invoices if i.period_start or getattr(i, "billing_type", None) == BillingType.RECURRING]
+        sorted_invoices = sorted(
+            cycle_invoices,
+            key=lambda x: (
+                x.period_start or datetime.min,
+                x.created_at or datetime.min,
+                x.id or 0,
+            )
+        )
+        for idx, inv in enumerate(sorted_invoices, 1):
+            payment_status = "UNPAID"
+            if inv.status == InvoiceStatus.PAID:
+                payment_status = "PAID"
+            elif inv.payments:
+                latest = sorted(inv.payments, key=lambda p: p.created_at or datetime.min)[-1]
+                p_val = getattr(latest.payment_status, "value", str(latest.payment_status))
+                payment_status = "PAID" if p_val in ("SUCCESSFUL", "PAID") else p_val
+            elif inv.status == InvoiceStatus.CANCELLED:
+                payment_status = "CANCELLED"
+            else:
+                payment_status = "UNPAID"
+
+            cycles.append({
+                "cycle_number": idx,
+                "period_start": inv.period_start,
+                "period_end": inv.period_end,
+                "invoice_id": inv.id,
+                "invoice_number": inv.invoice_number,
+                "invoice_date": inv.created_at,
+                "amount": inv.total_amount,
+                "invoice_status": inv.status.value if hasattr(inv.status, "value") else str(inv.status),
+                "payment_status": payment_status,
+            })
+        return cycles
+
 
 class Invoice(Base):
     __tablename__ = "invoices"
@@ -104,6 +159,22 @@ class Invoice(Base):
     subscription = relationship("Subscription", back_populates="invoices")
     lines = relationship("InvoiceLine", back_populates="invoice", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan")
+
+    @property
+    def subscription_name(self):
+        if self.subscription:
+            return self.subscription.name
+        return None
+
+    @property
+    def order_number(self):
+        if self.order:
+            return self.order.order_number
+        return f"ORD-{self.order_id}" if self.order_id else None
+
+    @property
+    def amount(self):
+        return self.total_amount
 
 
 class InvoiceLine(Base):

@@ -14,6 +14,20 @@ class SubscriptionPlanResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class BillingCycleResponse(BaseModel):
+    cycle_number: int
+    period_start: Optional[datetime] = None
+    period_end: Optional[datetime] = None
+    invoice_id: Optional[int] = None
+    invoice_number: Optional[str] = None
+    invoice_date: Optional[datetime] = None
+    amount: float = 0.0
+    invoice_status: Optional[str] = None
+    payment_status: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class SubscriptionResponse(BaseModel):
     id: int
     customer_id: int
@@ -21,6 +35,8 @@ class SubscriptionResponse(BaseModel):
     order_id: Optional[int] = None
     product_id: Optional[int] = None
     name: Optional[str] = None
+    product_name: Optional[str] = None
+    order_number: Optional[str] = None
     duration_mode: Optional[str] = None
     validity_value: Optional[int] = None
     validity_unit: Optional[str] = None
@@ -33,6 +49,7 @@ class SubscriptionResponse(BaseModel):
     renewal_date: Optional[datetime] = None
     next_billing_date: Optional[datetime] = None
     plan: Optional[SubscriptionPlanResponse] = None
+    billing_cycles: list[BillingCycleResponse] = []
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -76,8 +93,10 @@ class InvoiceResponse(BaseModel):
     id: int
     invoice_number: str
     order_id: Optional[int] = None
+    order_number: Optional[str] = None
     customer_id: int
     subscription_id: Optional[int] = None
+    subscription_name: Optional[str] = None
     subtotal: float = 0.0
     discount: float = 0.0
     tax: float = 0.0
