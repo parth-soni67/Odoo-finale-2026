@@ -87,8 +87,7 @@ export function InventoryManagement({ user, onNotify }) {
   }
 
   function handleOpenAddStock() {
-    const activeWh = warehouses.filter((w) => w.is_active);
-    if (activeWh.length > 0) setAddWhId(activeWh[0].id);
+    if (warehouses.length > 0) setAddWhId(warehouses[0].id);
     if (products.length > 0) setAddProdId(products[0].id);
     setAddQty(10);
     setAddReason("Initial Stock");
@@ -448,7 +447,7 @@ export function InventoryManagement({ user, onNotify }) {
                     onChange={(e) => setAddWhId(e.target.value)}
                     required
                   >
-                    {warehouses.filter((w) => w.is_active).map((w) => (
+                    {warehouses.map((w) => (
                       <option key={w.id} value={w.id}>
                         {w.name} ({w.location})
                       </option>

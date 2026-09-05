@@ -149,7 +149,7 @@ export function RoleSidebar({
               aria-current={active ? "page" : undefined}
             >
               <Icon size={17} className="sidebar-icon" />
-              <span className="sidebar-text">{item.label}</span>
+              <span className="sidebar-text nav-label">{item.label}</span>
             </button>
           );
         })}

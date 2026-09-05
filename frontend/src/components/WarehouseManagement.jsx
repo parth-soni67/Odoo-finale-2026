@@ -57,7 +57,6 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
   // Warehouse Form State
   const [whName, setWhName] = useState("");
   const [whLocation, setWhLocation] = useState("");
-  const [whIsActive, setWhIsActive] = useState(true);
   const [whInitialProdId, setWhInitialProdId] = useState("");
   const [whInitialQty, setWhInitialQty] = useState(0);
 
@@ -118,7 +117,6 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
     setSelectedWh(null);
     setWhName("");
     setWhLocation("");
-    setWhIsActive(true);
     setWhInitialProdId("");
     setWhInitialQty(0);
     setWhModalMode("create");
@@ -130,7 +128,6 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
     setSelectedWh(wh);
     setWhName(wh.name);
     setWhLocation(wh.location);
-    setWhIsActive(wh.is_active);
     setWhInitialProdId("");
     setWhInitialQty(0);
     setWhModalMode("edit");
@@ -151,7 +148,7 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
         const newWh = await api.createWarehouse({
           name: whName.trim(),
           location: whLocation.trim(),
-          is_active: whIsActive,
+          is_active: true,
         });
 
         // Add initial stock if specified
@@ -172,7 +169,7 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
         await api.updateWarehouse(selectedWh.id, {
           name: whName.trim(),
           location: whLocation.trim(),
-          is_active: whIsActive,
+          is_active: true,
         });
         onNotify(`Warehouse "${whName.trim()}" updated successfully!`, "success");
       }
@@ -185,25 +182,6 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
       onNotify(`Failed to ${whModalMode} warehouse: ` + err.message, "error");
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  // Activate / Deactivate
-  async function handleToggleStatus(wh) {
-    try {
-      if (wh.is_active) {
-        await api.deactivateWarehouse(wh.id);
-        onNotify(`Warehouse "${wh.name}" deactivated.`, "info");
-      } else {
-        await api.activateWarehouse(wh.id);
-        onNotify(`Warehouse "${wh.name}" activated!`, "success");
-      }
-      await loadWarehouses();
-      if (activeWarehouseId === wh.id) {
-        await loadWarehouseDetail(wh.id);
-      }
-    } catch (err) {
-      onNotify("Failed to toggle status: " + err.message, "error");
     }
   }
 
@@ -304,7 +282,11 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
       }
       await loadWarehouses();
     } catch (err) {
-      onNotify("Cannot delete warehouse: " + err.message, "error");
+      const errMsg =
+        typeof err.response?.data?.detail === "object"
+          ? err.response?.data?.detail?.message || JSON.stringify(err.response.data.detail)
+          : err.response?.data?.detail || err.message;
+      onNotify("Cannot delete warehouse: " + errMsg, "error");
     }
   }
 
@@ -424,15 +406,6 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
                 <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>
                   {wh?.warehouse_name || wh?.name || "Warehouse"}
                 </h1>
-                <span
-                  className={`badge ${
-                    (wh?.status || (wh?.is_active ? "ACTIVE" : "INACTIVE")) === "ACTIVE"
-                      ? "badge-healthy"
-                      : "badge-neutral"
-                  }`}
-                >
-                  {wh?.status || (wh?.is_active ? "ACTIVE" : "INACTIVE")}
-                </span>
               </div>
               <div
                 style={{
@@ -470,16 +443,14 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
                   <Edit2 size={13} /> Edit
                 </button>
                 <button
-                  className={`btn btn-sm ${wh?.is_active ? "btn-secondary" : "btn-primary"}`}
-                  onClick={() => handleToggleStatus(wh)}
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleDeleteWarehouse(wh)}
                 >
-                  {wh?.is_active ? "Deactivate" : "Activate"}
+                  <Trash2 size={13} color="var(--status-high)" /> Delete
                 </button>
                 <button
                   className="btn btn-primary btn-sm"
                   onClick={handleOpenAddStock}
-                  disabled={!wh?.is_active}
-                  title={!wh?.is_active ? "Warehouse is inactive" : "+ Add Stock to Warehouse"}
                 >
                   <Plus size={14} /> Add Stock
                 </button>
@@ -627,7 +598,7 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
                 : "This warehouse currently has no inventory recorded."}
             </p>
             {canManage && (
-              <button className="btn btn-primary" onClick={handleOpenAddStock} disabled={!wh?.is_active}>
+              <button className="btn btn-primary" onClick={handleOpenAddStock}>
                 <Plus size={15} /> Add Initial Stock
               </button>
             )}
@@ -747,8 +718,7 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
                                     <button
                                       className="btn btn-secondary btn-sm"
                                       onClick={() => handleOpenRestock(prod, activeWarehouseId)}
-                                      disabled={!wh?.is_active}
-                                      title={!wh?.is_active ? "Warehouse inactive" : "Restock Inventory"}
+                                      title="Restock Inventory"
                                       style={{ padding: "0.25rem 0.55rem" }}
                                     >
                                       <RotateCcw size={12} /> Restock
@@ -966,7 +936,7 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
                       autoFocus
                     />
                   </div>
-                  <div>
+                  <div style={{ marginBottom: "1rem" }}>
                     <label className="form-label" style={{ fontWeight: 600 }}>Location / City *</label>
                     <input
                       type="text"
@@ -976,18 +946,6 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
                       onChange={(e) => setWhLocation(e.target.value)}
                       required
                     />
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginTop: "0.25rem" }}>
-                    <input
-                      type="checkbox"
-                      id="wh-active-check"
-                      checked={whIsActive}
-                      onChange={(e) => setWhIsActive(e.target.checked)}
-                      style={{ width: "16px", height: "16px" }}
-                    />
-                    <label htmlFor="wh-active-check" style={{ fontSize: "0.9rem", fontWeight: 600, cursor: "pointer" }}>
-                      Active Status (Available for Fulfillment Allocation)
-                    </label>
                   </div>
                 </div>
                 <div className="modal-footer" style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
@@ -1024,7 +982,6 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
   });
 
   const totalStock = warehouses.reduce((sum, w) => sum + (w.available_stock || 0), 0);
-  const activeCount = warehouses.filter((w) => w.is_active).length;
 
   return (
     <div>
@@ -1067,14 +1024,6 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
           </div>
           <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--text-primary)", marginTop: "0.3rem" }}>
             {warehouses.length}
-          </div>
-        </div>
-        <div className="card" style={{ padding: "1.1rem" }}>
-          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>
-            Active Warehouses
-          </div>
-          <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--status-healthy-text)", marginTop: "0.3rem" }}>
-            {activeCount}
           </div>
         </div>
         <div className="card" style={{ padding: "1.1rem" }}>
@@ -1127,9 +1076,8 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
                 <tr>
                   <th>Warehouse</th>
                   <th>Location</th>
-                  <th style={{ textAlign: "center", width: "110px" }}>Status</th>
-                  <th style={{ textAlign: "right", width: "140px" }}>Total Units</th>
-                  {canManage && <th style={{ textAlign: "right", width: "230px" }}>Actions</th>}
+                  <th style={{ textAlign: "right", width: "160px" }}>Available Stock</th>
+                  {canManage && <th style={{ textAlign: "right", width: "180px" }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -1167,11 +1115,6 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
                         {wh.location}
                       </div>
                     </td>
-                    <td style={{ textAlign: "center" }}>
-                      <span className={`badge ${wh.is_active ? "badge-healthy" : "badge-neutral"}`}>
-                        {wh.is_active ? "ACTIVE" : "INACTIVE"}
-                      </span>
-                    </td>
                     <td style={{ textAlign: "right", fontWeight: 700, fontSize: "0.95rem" }}>
                       <span style={{ color: (wh.available_stock || 0) > 0 ? "var(--text-primary)" : "var(--status-high-text)" }}>
                         {(wh.available_stock || 0).toLocaleString()} units
@@ -1182,34 +1125,18 @@ export function WarehouseManagement({ user, onNotify, initialWarehouseId = null 
                         <div style={{ display: "inline-flex", gap: "0.4rem" }}>
                           <button
                             className="btn btn-secondary btn-sm"
-                            onClick={() => setActiveWarehouseId(wh.id)}
-                            title="View Detailed Inventory"
-                          >
-                            View
-                          </button>
-                          <button
-                            className="btn btn-secondary btn-sm"
                             onClick={() => handleOpenEdit(wh)}
                             title="Edit Warehouse"
                           >
                             <Edit2 size={13} /> Edit
                           </button>
                           <button
-                            className={`btn btn-sm ${wh.is_active ? "btn-secondary" : "btn-primary"}`}
-                            onClick={() => handleToggleStatus(wh)}
-                            title={wh.is_active ? "Deactivate Facility" : "Activate Facility"}
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleDeleteWarehouse(wh)}
+                            title="Delete Facility"
                           >
-                            {wh.is_active ? "Deactivate" : "Activate"}
+                            <Trash2 size={13} color="var(--status-high)" /> Delete
                           </button>
-                          {user?.role === "ADMIN" && (
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => handleDeleteWarehouse(wh)}
-                              title="Delete Facility"
-                            >
-                              <Trash2 size={13} color="var(--status-high)" />
-                            </button>
-                          )}
                         </div>
                       </td>
                     )}

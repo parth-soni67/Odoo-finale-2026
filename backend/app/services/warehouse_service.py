@@ -345,11 +345,6 @@ class InventoryService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"code": "WAREHOUSE_NOT_FOUND", "message": f"Warehouse {stock_in.warehouse_id} not found"},
             )
-        if not wh.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={"code": "WAREHOUSE_INACTIVE", "message": f"Cannot add stock to inactive warehouse '{wh.name}'"},
-            )
 
         prod = db.query(Product).filter(Product.id == stock_in.product_id).first()
         if not prod:
@@ -470,11 +465,6 @@ class InventoryService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"code": "WAREHOUSE_NOT_FOUND", "message": f"Warehouse {warehouse_id} not found"},
-            )
-        if not wh.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={"code": "WAREHOUSE_INACTIVE", "message": f"Cannot restock inactive warehouse '{wh.name}'"},
             )
 
         prod = db.query(Product).filter(Product.id == product_id).first()
@@ -668,7 +658,7 @@ class InventoryService:
             "warehouse_id": wh.id,
             "warehouse_name": wh.name,
             "location": wh.location,
-            "status": "ACTIVE" if wh.is_active else "INACTIVE",
+            "status": "ACTIVE",
             "total_units": total_warehouse_units,
             "total_products": len(inventories),
             "total_categories": len(categories_list),
