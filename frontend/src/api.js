@@ -31,7 +31,16 @@ async function request(path, options = {}) {
   const data = await res.json().catch(() => null);
 
   if (!res.ok) {
-    const errorMsg = data?.error?.message || `HTTP ${res.status}: ${res.statusText}`;
+    let errorMsg = `HTTP ${res.status}: ${res.statusText}`;
+    if (data?.error?.message) {
+      errorMsg = data.error.message;
+    } else if (typeof data?.detail === "string") {
+      errorMsg = data.detail;
+    } else if (data?.detail?.message) {
+      errorMsg = data.detail.message;
+    } else if (Array.isArray(data?.detail) && data.detail[0]?.msg) {
+      errorMsg = data.detail[0].msg;
+    }
     throw new Error(errorMsg);
   }
 
@@ -185,5 +194,57 @@ export const api = {
   // Reports
   async getSalesSummary() {
     return request("/reports/sales-summary");
+  },
+
+  // Quotations & Approvals
+  async getQuotes(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return request(`/quotes${query ? `?${query}` : ""}`);
+  },
+
+  async getQuote(id) {
+    return request(`/quotes/${id}`);
+  },
+
+  async createQuote(payload) {
+    return request("/quotes", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateQuote(id, payload) {
+    return request(`/quotes/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async evaluateQuoteRisk(id) {
+    return request(`/quotes/${id}/risk`, {
+      method: "POST",
+    });
+  },
+
+  async getQuoteRecommendations(id) {
+    return request(`/quotes/${id}/recommendations`);
+  },
+
+  async getQuoteApprovals(id) {
+    return request(`/quotes/${id}/approvals`);
+  },
+
+  async approveQuote(id, comments = null) {
+    return request(`/quotes/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ comments }),
+    });
+  },
+
+  async rejectQuote(id, comments = null) {
+    return request(`/quotes/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ comments }),
+    });
   },
 };
