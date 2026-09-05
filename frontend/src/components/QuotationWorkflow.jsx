@@ -340,7 +340,7 @@ export function QuotationWorkflow({ user, onNotify, onInspectDeal }) {
           </button>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: "1.5rem", alignItems: "start" }}>
+        <div className="two-column-layout">
           {/* Quotes List */}
           <div className="card">
             <div className="card-header">
@@ -495,7 +495,7 @@ export function QuotationWorkflow({ user, onNotify, onInspectDeal }) {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
                   gap: "0.75rem",
                   marginBottom: "1.5rem",
                 }}

@@ -307,7 +307,7 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
 
       {/* Tab: Quotes */}
       {activeTab === "quotes" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: "1.5rem", alignItems: "start" }}>
+        <div className="two-column-layout">
           {/* Quotes List */}
           <div className="card">
             <div className="card-header">
@@ -521,7 +521,7 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
               </p>
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: "1.5rem", alignItems: "start" }}>
+            <div className="two-column-layout">
               {/* Orders List / Cards */}
               <div className="card">
                 <div className="card-header">

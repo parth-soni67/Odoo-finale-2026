@@ -89,7 +89,7 @@ export function SalesReports({ onNotify }) {
       </div>
 
       {/* Breakdown Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+      <div className="dashboard-two-col">
         <div className="card">
           <h2 className="card-title" style={{ marginBottom: "1rem" }}>
             <TrendingUp size={18} color="var(--primary)" /> Quote Conversion & Velocity

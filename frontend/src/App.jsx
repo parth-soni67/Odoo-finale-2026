@@ -418,8 +418,9 @@ export default function App() {
       {/* Global Header */}
       <header className="header">
         <div className="header-inner">
+          {/* 1. Brand */}
           <div
-            className="brand"
+            className="header-brand"
             onClick={() => {
               if (currentUser) {
                 navigateTo(ROLE_DEFAULT_TAB[currentUser.role] || "portal");
@@ -427,18 +428,18 @@ export default function App() {
                 goToLogin();
               }
             }}
-            style={{ cursor: "pointer", flexShrink: 0 }}
+            style={{ cursor: "pointer" }}
           >
-            <Activity size={24} color="var(--primary)" />
-            <span>
+            <Activity size={22} color="var(--primary)" style={{ flexShrink: 0 }} />
+            <span className="brand-text">
               DealFlow<span style={{ color: "var(--primary)" }}>360</span>
             </span>
             <span className="brand-badge">Intelligent Ops</span>
           </div>
 
-          {/* Dynamic Role-Based Navigation */}
+          {/* 2. Main Navigation */}
           {currentUser && !isShowingRegister && !isShowingLogin && (
-            <nav className="nav-links" style={{ flexWrap: "wrap", flexShrink: 1 }}>
+            <nav className="header-nav" aria-label="Main Navigation">
               {roleNavItems.map((item) => {
                 const Icon = item.icon;
                 const isCustomerTab = currentUser.role === "CUSTOMER";
@@ -450,34 +451,29 @@ export default function App() {
                 return (
                   <button
                     key={item.id}
+                    type="button"
                     className={`nav-item ${isActive ? "active" : ""}`}
                     onClick={() => navigateTo(item.id)}
                   >
-                    <Icon size={16} /> {item.label}
+                    <Icon size={15} style={{ flexShrink: 0 }} />
+                    <span className="nav-label">{item.label}</span>
                   </button>
                 );
               })}
             </nav>
           )}
 
-          {/* Demo Persona Switcher & User Status */}
-          <div className="user-controls" style={{ flexWrap: "wrap", flexShrink: 0 }}>
-            <div className="persona-switcher" title="Quickly login using pre-seeded demo accounts">
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  color: "var(--text-muted)",
-                  fontWeight: 700,
-                  paddingLeft: "0.2rem",
-                }}
-              >
-                DEMO PERSONAS:
-              </span>
+          {/* 3. Demo Persona Switcher */}
+          <div className="header-personas">
+            {/* Desktop Pills (wide screens) */}
+            <div className="persona-pills" title="Quickly login using pre-seeded demo accounts">
+              <span className="persona-label">DEMO:</span>
               {DEMO_PERSONAS.map((p) => {
                 const isActive = currentUser?.email === p.email;
                 return (
                   <button
                     key={p.email}
+                    type="button"
                     className={`persona-btn ${isActive ? "active" : ""}`}
                     onClick={() => loginAs(p.email)}
                   >
@@ -487,22 +483,54 @@ export default function App() {
               })}
             </div>
 
-            {currentUser && (
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexShrink: 0 }}>
-                <span className="badge badge-neutral" style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}>
-                  <UserCheck size={12} /> AUTHENTICATED: {currentUser.role}
-                </span>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={handleLogout}
-                  title="Logout"
-                  style={{ whiteSpace: "nowrap" }}
-                >
-                  <LogOut size={13} /> Logout
-                </button>
-              </div>
-            )}
+            {/* Compact Dropdown (medium/tablet/mobile screens) */}
+            <div className="persona-dropdown" title="Switch demo persona">
+              <span className="persona-label-compact">DEMO PERSONA:</span>
+              <select
+                className="persona-select"
+                value={currentUser?.email || ""}
+                onChange={(e) => loginAs(e.target.value)}
+                aria-label="Demo Persona Switcher"
+              >
+                {!DEMO_PERSONAS.some((p) => p.email === currentUser?.email) && (
+                  <option value="" disabled>
+                    Switch persona...
+                  </option>
+                )}
+                {DEMO_PERSONAS.map((p) => (
+                  <option key={p.email} value={p.email}>
+                    {p.label} ({p.role.replace("_", " ")})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          {/* 4. Authenticated User Badge */}
+          {currentUser && (
+            <div className="header-auth">
+              <span className="badge badge-neutral auth-badge" title={`Role: ${currentUser.role}`}>
+                <UserCheck size={12} style={{ flexShrink: 0 }} />
+                <span className="auth-role-full">AUTHENTICATED: {currentUser.role}</span>
+                <span className="auth-role-compact">{currentUser.role.replace("_", " ")}</span>
+              </span>
+            </div>
+          )}
+
+          {/* 5. Logout */}
+          {currentUser && (
+            <div className="header-logout">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm logout-btn"
+                onClick={handleLogout}
+                title="Logout"
+              >
+                <LogOut size={13} style={{ flexShrink: 0 }} />
+                <span className="logout-text">Logout</span>
+              </button>
+            </div>
+          )}
         </div>
       </header>
 

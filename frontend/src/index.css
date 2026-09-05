@@ -63,7 +63,17 @@
   --radius-full: 9999px;
 }
 
-* {
+html,
+body {
+  width: 100%;
+  max-width: 100vw;
+  margin: 0;
+  padding: 0;
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -83,15 +93,18 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  width: 100%;
+  max-width: 100vw;
   background-color: var(--bg-main);
 }
 
 .main-content {
   flex: 1;
-  max-width: 1400px;
+  max-width: 1440px;
   width: 100%;
   margin: 0 auto;
-  padding: 1.75rem 1.5rem;
+  padding: 1.5rem 1.25rem;
+  min-width: 0;
 }
 
 /* Header & Navigation */
@@ -102,62 +115,88 @@ body {
   top: 0;
   z-index: 50;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  width: 100%;
+  max-width: 100vw;
 }
 
 .header-inner {
-  max-width: 1400px;
+  max-width: 100%;
+  width: 100%;
   margin: 0 auto;
-  padding: 0.75rem 1.5rem;
+  padding: 0.55rem 1.25rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
+  gap: 0.65rem;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
+/* 1. Brand */
+.header-brand,
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.45rem;
   font-weight: 800;
-  font-size: 1.2rem;
+  font-size: 1.12rem;
   letter-spacing: -0.025em;
   color: var(--text-primary);
   cursor: pointer;
   user-select: none;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  white-space: nowrap;
 }
 
 .brand-badge {
   background: var(--primary-light);
   color: var(--primary);
   border: 1px solid var(--primary-border);
-  padding: 0.15rem 0.5rem;
+  padding: 0.1rem 0.4rem;
   border-radius: var(--radius-sm);
-  font-size: 0.68rem;
+  font-size: 0.63rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
+/* 2. Main Navigation */
+.header-nav,
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.2rem;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.header-nav::-webkit-scrollbar,
+.nav-links::-webkit-scrollbar {
+  display: none;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.45rem 0.8rem;
+  gap: 0.25rem;
+  padding: 0.28rem 0.44rem;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   background: transparent;
   border: 1px solid transparent;
   font-weight: 500;
-  font-size: 0.88rem;
+  font-size: 0.78rem;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .nav-item:hover {
@@ -172,47 +211,161 @@ body {
   font-weight: 600;
 }
 
-/* User Controls & Persona Switcher */
-.user-controls {
+/* 3. Demo Persona Switcher */
+.header-personas,
+.persona-switcher-container {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
+.persona-pills,
 .persona-switcher {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.15rem;
   background: var(--bg-surface-elevated);
-  padding: 0.25rem 0.4rem;
+  padding: 0.15rem 0.3rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
-  font-size: 0.8rem;
-  flex-wrap: wrap;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.persona-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 700;
+  padding: 0 0.2rem;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .persona-btn {
   background: transparent;
   border: none;
   color: var(--text-secondary);
-  padding: 0.25rem 0.6rem;
+  padding: 0.16rem 0.34rem;
   border-radius: var(--radius-sm);
-  font-size: 0.75rem;
+  font-size: 0.69rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .persona-btn:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .persona-btn.active {
   background: var(--primary);
   color: #ffffff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Compact Dropdown (medium/mobile screens) */
+.persona-dropdown,
+.persona-dropdown-container {
+  display: none;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--bg-surface-elevated);
+  padding: 0.18rem 0.38rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+.persona-label-compact {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.persona-select {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 0.2rem 0.4rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  max-width: 180px;
+}
+
+.persona-select:focus {
+  border-color: var(--primary);
+}
+
+/* 4. Authenticated User Badge */
+.header-auth,
+.user-auth-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.auth-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  padding: 0.22rem 0.48rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.auth-role-full {
+  display: inline;
+}
+
+.auth-role-compact {
+  display: none;
+}
+
+/* 5. Logout */
+.header-logout {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Responsive Master-Detail & Two Column Grids */
+.two-column-layout {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+  width: 100%;
+}
+
+.dashboard-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+/* Prevent overflow in cards and containers */
+.card,
+.table-container {
+  min-width: 0;
 }
 
 /* Cards & Containers */
@@ -616,28 +769,219 @@ body {
   border-left: 4px solid var(--primary);
 }
 
-/* Responsive Overrides */
-@media (max-width: 1024px) {
-  .header-inner {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
+/* Responsive Overrides & Viewport Optimizations */
+/* Responsive Overrides & Viewport Optimizations */
+@media (max-width: 1440px) {
+  .brand-badge {
+    display: none;
   }
-  .user-controls {
+  .persona-pills,
+  .persona-switcher {
+    display: none;
+  }
+  .persona-dropdown,
+  .persona-dropdown-container {
+    display: flex;
+  }
+  .auth-role-full {
+    display: none;
+  }
+  .auth-role-compact {
+    display: inline;
+  }
+
+  /* Two-tier responsive layout where Main Navigation has its own dedicated full-width row */
+  .header-inner {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      "brand personas auth logout"
+      "nav   nav      nav  nav";
+    row-gap: 0.45rem;
+    column-gap: 0.6rem;
+    padding: 0.45rem 0.85rem;
+    min-width: 0;
+    max-width: 100%;
     width: 100%;
-    justify-content: space-between;
-    flex-wrap: wrap;
+    box-sizing: border-box;
+  }
+
+  .header-brand,
+  .brand {
+    grid-area: brand;
+    align-self: center;
+  }
+
+  .header-personas,
+  .persona-switcher-container {
+    grid-area: personas;
+    justify-self: end;
+    align-self: center;
+    margin-left: 0;
+  }
+
+  .header-auth,
+  .user-auth-actions {
+    grid-area: auth;
+    align-self: center;
+  }
+
+  .header-logout {
+    grid-area: logout;
+    align-self: center;
+  }
+
+  .header-nav,
+  .nav-links {
+    grid-area: nav;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-top: 0.35rem;
+    border-top: 1px solid var(--border-subtle);
+    scrollbar-width: none;
+  }
+
+  .header-nav::-webkit-scrollbar,
+  .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .two-column-layout {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-two-col {
+    grid-template-columns: 1fr;
+    gap: 1rem;
   }
 }
 
 @media (max-width: 768px) {
   .main-content {
-    padding: 1.25rem 1rem;
+    padding: 1rem 0.75rem;
   }
-  .nav-links {
-    flex-wrap: wrap;
+  .header-inner {
+    padding: 0.45rem 0.65rem;
+  }
+  .nav-item {
+    padding: 0.3rem 0.48rem;
+    font-size: 0.78rem;
+  }
+  .persona-select {
+    max-width: 150px;
+    font-size: 0.72rem;
   }
   .kpi-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Mobile: 600px and down (including 390x844) */
+@media (max-width: 600px) {
+  .header-inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "brand    logout"
+      "personas auth"
+      "nav      nav";
+    row-gap: 0.4rem;
+    column-gap: 0.5rem;
+    padding: 0.45rem 0.65rem;
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .header-brand,
+  .brand {
+    grid-area: brand;
+    justify-self: start;
+    align-self: center;
+  }
+
+  .header-logout {
+    grid-area: logout;
+    justify-self: end;
+    align-self: center;
+  }
+
+  .header-personas,
+  .persona-switcher-container {
+    grid-area: personas;
+    justify-self: start;
+    align-self: center;
+    width: 100%;
+  }
+
+  .persona-dropdown,
+  .persona-dropdown-container {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .persona-label-compact {
+    font-size: 0.68rem;
+  }
+
+  .persona-select {
+    max-width: 135px;
+    padding: 0.2rem 0.35rem;
+    font-size: 0.72rem;
+  }
+
+  .header-auth,
+  .user-auth-actions {
+    grid-area: auth;
+    justify-self: end;
+    align-self: center;
+  }
+
+  .auth-badge {
+    padding: 0.2rem 0.35rem;
+    font-size: 0.68rem;
+  }
+
+  .brand-text {
+    font-size: 1.05rem;
+  }
+
+  .logout-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .logout-text {
+    display: inline;
+  }
+
+  .header-nav,
+  .nav-links {
+    grid-area: nav;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-top: 0.25rem;
+    border-top: 1px solid var(--border-subtle);
+    scrollbar-width: none;
+  }
+
+  .header-nav::-webkit-scrollbar,
+  .nav-links::-webkit-scrollbar {
+    display: none;
   }
 }

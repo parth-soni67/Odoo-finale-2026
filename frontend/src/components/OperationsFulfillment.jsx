@@ -85,7 +85,7 @@ export function OperationsFulfillment({ onNotify }) {
           </p>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: "1.5rem", alignItems: "start" }}>
+        <div className="two-column-layout">
           {/* Order List */}
           <div className="card">
             <div className="card-header">
