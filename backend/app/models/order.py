@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Enum
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Enum, Boolean
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -52,6 +52,15 @@ class OrderLine(Base):
     discount_percent = Column(Float, nullable=False, default=0.0)
     line_total = Column(Float, nullable=False)
     line_type = Column(Enum(LineType), default=LineType.ONE_TIME, nullable=False)
+
+    # Subscription / Service Entitlement Snapshot
+    subscription_enabled = Column(Boolean, default=False, nullable=False)
+    subscription_name = Column(String(255), nullable=True)
+    duration_mode = Column(String(50), nullable=True)  # LIFETIME, TILL_VALIDITY
+    validity_value = Column(Integer, nullable=True)
+    validity_unit = Column(String(50), nullable=True)  # MONTHS, YEARS
+    billing_frequency = Column(String(50), default="NONE", nullable=True)  # MONTHLY, QUARTERLY, YEARLY, NONE
+    subscription_start_trigger = Column(String(50), default="ORDER_ACTIVATION", nullable=True)
 
     # Relationships
     order = relationship("Order", back_populates="lines")

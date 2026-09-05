@@ -13,14 +13,15 @@ class BillingService:
         if not order:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "NOT_FOUND", "message": "Order not found"})
         
-        # Check if invoice already exists to avoid duplicates
-        existing_invoice = db.query(Invoice).filter(Invoice.order_id == order_id).first()
-        if existing_invoice:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"code": "BILLING_EXISTS", "message": "Billing already generated for this order"})
-
         invoices = []
-        subscriptions = []
+        now_dt = datetime.now()
         
+        # Check if one-time invoice already exists
+        existing_one_time_invoice = db.query(Invoice).filter(
+            Invoice.order_id == order_id,
+            Invoice.billing_type == BillingType.ONE_TIME
+        ).first()
+
         one_time_total = 0.0
         recurring_lines = []
         
@@ -30,7 +31,7 @@ class BillingService:
             elif line.line_type.value == "RECURRING":
                 recurring_lines.append(line)
                 
-        if one_time_total > 0:
+        if one_time_total > 0 and not existing_one_time_invoice:
             invoice_number = f"INV-{uuid.uuid4().hex[:8].upper()}"
             invoice = Invoice(
                 invoice_number=invoice_number,
@@ -39,7 +40,7 @@ class BillingService:
                 total_amount=one_time_total,
                 status=InvoiceStatus.DRAFT,
                 billing_type=BillingType.ONE_TIME,
-                due_date=datetime.now() + timedelta(days=30)
+                due_date=now_dt + timedelta(days=30)
             )
             db.add(invoice)
             db.flush()
@@ -54,38 +55,68 @@ class BillingService:
                 new_value=f"One-time invoice created for order {order.id}"
             )
             db.add(audit)
+
+        # Inspect subscriptions tied to order
+        subscriptions = db.query(Subscription).filter(Subscription.order_id == order_id).all()
+        for sub in subscriptions:
+            # Check expiry
+            if sub.end_date:
+                sub_end_naive = sub.end_date.replace(tzinfo=None) if sub.end_date.tzinfo else sub.end_date
+                if now_dt > sub_end_naive:
+                    sub.status = SubscriptionStatus.EXPIRED
+
+            # If active and has recurring billing frequency (not NONE)
+            if sub.status == SubscriptionStatus.ACTIVE and (sub.billing_frequency or "NONE").upper() not in ("NONE", ""):
+                # Find product unit price from order line
+                matching_line = next((l for l in order.lines if l.product_id == sub.product_id), None)
+                rec_amount = matching_line.line_total if matching_line else 0.0
+                if rec_amount > 0:
+                    rec_inv_number = f"INV-REC-{uuid.uuid4().hex[:8].upper()}"
+                    rec_invoice = Invoice(
+                        invoice_number=rec_inv_number,
+                        order_id=order.id,
+                        customer_id=order.customer_id,
+                        total_amount=rec_amount,
+                        status=InvoiceStatus.DRAFT,
+                        billing_type=BillingType.RECURRING,
+                        due_date=now_dt + timedelta(days=30)
+                    )
+                    db.add(rec_invoice)
+                    db.flush()
+                    invoices.append(rec_invoice)
             
+        # Legacy recurring lines check
         for r_line in recurring_lines:
-            # We assume a default SubscriptionPlan exists or we create a mapping
-            # For the demo, let's find a generic plan or the first one, or match by price
-            plan = db.query(SubscriptionPlan).first()
-            if not plan:
-                # create a dummy plan if none exists for the demo
-                plan = SubscriptionPlan(name="Demo Plan", price=r_line.unit_price, billing_frequency="monthly")
-                db.add(plan)
+            # Check if already has a subscription
+            existing_sub = next((s for s in subscriptions if s.product_id == r_line.product_id), None)
+            if not existing_sub:
+                plan = db.query(SubscriptionPlan).first()
+                if not plan:
+                    plan = SubscriptionPlan(name="Demo Plan", price=r_line.unit_price, billing_frequency="monthly")
+                    db.add(plan)
+                    db.flush()
+                    
+                sub = Subscription(
+                    customer_id=order.customer_id,
+                    plan_id=plan.id,
+                    order_id=order.id,
+                    status=SubscriptionStatus.ACTIVE,
+                    current_period_start=now_dt,
+                    current_period_end=now_dt + timedelta(days=30),
+                    renewal_date=now_dt + timedelta(days=30)
+                )
+                db.add(sub)
                 db.flush()
+                subscriptions.append(sub)
                 
-            sub = Subscription(
-                customer_id=order.customer_id,
-                plan_id=plan.id,
-                order_id=order.id,
-                status=SubscriptionStatus.ACTIVE,
-                current_period_start=datetime.now(),
-                current_period_end=datetime.now() + timedelta(days=30),
-                renewal_date=datetime.now() + timedelta(days=30)
-            )
-            db.add(sub)
-            db.flush()
-            subscriptions.append(sub)
-            
-            audit = AuditLog(
-                user_id=user_id,
-                entity_type="Subscription",
-                entity_id=sub.id,
-                action="SUBSCRIPTION_CREATED",
-                new_value=f"Subscription created for order {order.id}"
-            )
-            db.add(audit)
+                audit = AuditLog(
+                    user_id=user_id,
+                    entity_type="Subscription",
+                    entity_id=sub.id,
+                    action="SUBSCRIPTION_CREATED",
+                    new_value=f"Subscription created for order {order.id}"
+                )
+                db.add(audit)
             
         db.commit()
         
@@ -94,10 +125,32 @@ class BillingService:
         for s in subscriptions:
             db.refresh(s)
             
+        all_order_invoices = db.query(Invoice).filter(Invoice.order_id == order_id).all()
         return {
-            "invoices": invoices,
+            "invoices": all_order_invoices,
             "subscriptions": subscriptions
         }
+
+    def expire_subscription(self, db: Session, subscription_id: int, user_id: int) -> Subscription:
+        """Explicitly expires an active subscription and logs an audit trail."""
+        sub = db.query(Subscription).filter(Subscription.id == subscription_id).first()
+        if not sub:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "NOT_FOUND", "message": "Subscription not found"}
+            )
+        sub.status = SubscriptionStatus.EXPIRED
+        audit = AuditLog(
+            user_id=user_id,
+            entity_type="Subscription",
+            entity_id=sub.id,
+            action="SUBSCRIPTION_EXPIRED",
+            new_value=f"Subscription '{sub.name}' expired"
+        )
+        db.add(audit)
+        db.commit()
+        db.refresh(sub)
+        return sub
 
     def process_payment(self, db: Session, invoice_id: int, amount: float, payment_method: str, user_id: int) -> Payment:
         invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()

@@ -59,6 +59,15 @@ class QuoteLine(Base):
     line_total = Column(Float, nullable=False)
     line_type = Column(Enum(LineType), nullable=False, default=LineType.ONE_TIME)
 
+    # Subscription / Service Entitlement Snapshot
+    subscription_enabled = Column(Boolean, default=False, nullable=False)
+    subscription_name = Column(String(255), nullable=True)
+    duration_mode = Column(String(50), nullable=True)  # LIFETIME, TILL_VALIDITY
+    validity_value = Column(Integer, nullable=True)
+    validity_unit = Column(String(50), nullable=True)  # MONTHS, YEARS
+    billing_frequency = Column(String(50), default="NONE", nullable=True)  # MONTHLY, QUARTERLY, YEARLY, NONE
+    subscription_start_trigger = Column(String(50), default="ORDER_ACTIVATION", nullable=True)
+
     # Relationships
     quote = relationship("Quote", back_populates="lines")
     product = relationship("Product", back_populates="quote_lines")

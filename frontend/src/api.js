@@ -169,6 +169,22 @@ export const api = {
     return request(`/orders/${id}`);
   },
 
+  async activateOrder(id) {
+    return request(`/orders/${id}/activate`, {
+      method: "POST",
+    });
+  },
+
+  async getOrderSubscriptions(id) {
+    return request(`/orders/${id}/subscriptions`);
+  },
+
+  async expireSubscription(subscriptionId) {
+    return request(`/orders/subscriptions/${subscriptionId}/expire`, {
+      method: "POST",
+    });
+  },
+
   async getPortalInvoices() {
     return request("/portal/invoices");
   },

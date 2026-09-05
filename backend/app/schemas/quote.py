@@ -13,6 +13,15 @@ class QuoteLineBase(BaseModel):
     discount_percent: float = 0.0
     line_type: LineType = LineType.ONE_TIME
 
+    # Subscription / Service Entitlement Snapshot
+    subscription_enabled: Optional[bool] = None
+    subscription_name: Optional[str] = None
+    duration_mode: Optional[str] = None  # LIFETIME, TILL_VALIDITY
+    validity_value: Optional[int] = None
+    validity_unit: Optional[str] = None  # MONTHS, YEARS
+    billing_frequency: Optional[str] = None  # MONTHLY, QUARTERLY, YEARLY, NONE
+    subscription_start_trigger: Optional[str] = None
+
 
 class QuoteLineCreate(QuoteLineBase):
     pass
@@ -28,6 +37,15 @@ class QuoteLineResponse(BaseModel):
     discount_amount: float
     line_total: float
     line_type: LineType
+
+    # Subscription / Service Entitlement Snapshot
+    subscription_enabled: bool = False
+    subscription_name: Optional[str] = None
+    duration_mode: Optional[str] = None
+    validity_value: Optional[int] = None
+    validity_unit: Optional[str] = None
+    billing_frequency: Optional[str] = "NONE"
+    subscription_start_trigger: Optional[str] = "ORDER_ACTIVATION"
 
     model_config = ConfigDict(from_attributes=True)
 

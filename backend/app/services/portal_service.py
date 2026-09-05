@@ -73,6 +73,13 @@ class PortalService:
                 "discount_amount": line.discount_amount,
                 "line_total": line.line_total,
                 "line_type": line.line_type.value,
+                "subscription_enabled": line.subscription_enabled,
+                "subscription_name": line.subscription_name,
+                "duration_mode": line.duration_mode,
+                "validity_value": line.validity_value,
+                "validity_unit": line.validity_unit,
+                "billing_frequency": line.billing_frequency,
+                "subscription_start_trigger": line.subscription_start_trigger,
             })
 
         negotiations_data = []
@@ -165,6 +172,7 @@ class PortalService:
             .options(
                 joinedload(Order.lines).joinedload(OrderLine.product),
                 joinedload(Order.lines).joinedload(OrderLine.fulfillment_splits).joinedload(FulfillmentSplit.warehouse),
+                joinedload(Order.subscriptions),
             )
             .filter(Order.customer_id == customer.id)
             .order_by(Order.created_at.desc())
@@ -179,6 +187,7 @@ class PortalService:
             .options(
                 joinedload(Order.lines).joinedload(OrderLine.product),
                 joinedload(Order.lines).joinedload(OrderLine.fulfillment_splits).joinedload(FulfillmentSplit.warehouse),
+                joinedload(Order.subscriptions),
             )
             .filter(Order.id == order_id)
             .first()

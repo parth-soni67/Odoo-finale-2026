@@ -22,9 +22,10 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from app.core.database import Base, engine
+    from app.core.database import Base, engine, sync_db_schema
     import app.models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+    sync_db_schema(engine)
     yield
 
 

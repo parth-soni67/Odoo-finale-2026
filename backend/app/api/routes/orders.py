@@ -129,3 +129,29 @@ def get_invoices(
 ):
     summary = billing_service.get_billing_summary(db, order_id)
     return summary["invoices"]
+
+@router.post("/{order_id}/activate", response_model=OrderResponse)
+def activate_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.OPERATIONS, Role.SALES_MANAGER, Role.ADMIN, Role.CUSTOMER))
+):
+    return order_service.activate_order(db, order_id=order_id, user_id=current_user.id)
+
+@router.get("/{order_id}/subscriptions", response_model=List[SubscriptionResponse])
+def get_order_subscriptions(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.FINANCE, Role.ADMIN, Role.SALES_REP, Role.OPERATIONS, Role.CUSTOMER))
+):
+    summary = billing_service.get_billing_summary(db, order_id)
+    return summary["subscriptions"]
+
+@router.post("/subscriptions/{subscription_id}/expire", response_model=SubscriptionResponse)
+def expire_subscription(
+    subscription_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.FINANCE, Role.ADMIN, Role.OPERATIONS, Role.SALES_MANAGER))
+):
+    return billing_service.expire_subscription(db, subscription_id=subscription_id, user_id=current_user.id)
+

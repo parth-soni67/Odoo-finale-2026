@@ -29,6 +29,15 @@ class ProductBase(BaseModel):
     allowed_discount_percent: float = 0.0
     is_active: bool = True
 
+    # Subscription / Service Entitlement
+    subscription_enabled: bool = False
+    subscription_name: Optional[str] = None
+    duration_mode: Optional[str] = None  # LIFETIME, TILL_VALIDITY
+    validity_value: Optional[int] = None
+    validity_unit: Optional[str] = None  # MONTHS, YEARS
+    billing_frequency: Optional[str] = "NONE"  # MONTHLY, QUARTERLY, YEARLY, NONE
+    subscription_start_trigger: Optional[str] = "ORDER_ACTIVATION"
+
 
 class ProductCreate(ProductBase):
     pass
@@ -42,6 +51,14 @@ class ProductUpdate(BaseModel):
     cost_price: Optional[float] = None
     allowed_discount_percent: Optional[float] = None
     is_active: Optional[bool] = None
+
+    subscription_enabled: Optional[bool] = None
+    subscription_name: Optional[str] = None
+    duration_mode: Optional[str] = None
+    validity_value: Optional[int] = None
+    validity_unit: Optional[str] = None
+    billing_frequency: Optional[str] = None
+    subscription_start_trigger: Optional[str] = None
 
 
 class ProductResponse(ProductBase):

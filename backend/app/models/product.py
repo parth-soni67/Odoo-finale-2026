@@ -30,12 +30,22 @@ class Product(Base):
     allowed_discount_percent = Column(Float, nullable=False, default=0.0)
     is_active = Column(Boolean, default=True, nullable=False)
 
+    # Subscription / Service Entitlement
+    subscription_enabled = Column(Boolean, default=False, nullable=False)
+    subscription_name = Column(String(255), nullable=True)
+    duration_mode = Column(String(50), nullable=True)  # LIFETIME, TILL_VALIDITY
+    validity_value = Column(Integer, nullable=True)
+    validity_unit = Column(String(50), nullable=True)  # MONTHS, YEARS
+    billing_frequency = Column(String(50), default="NONE", nullable=True)  # MONTHLY, QUARTERLY, YEARLY, NONE
+    subscription_start_trigger = Column(String(50), default="ORDER_ACTIVATION", nullable=True)
+
     # Relationships
     category = relationship("ProductCategory", back_populates="products")
     inventory_items = relationship("Inventory", back_populates="product")
     quote_lines = relationship("QuoteLine", back_populates="product")
     order_lines = relationship("OrderLine", back_populates="product")
     recommendations = relationship("Recommendation", back_populates="product")
+    subscriptions = relationship("Subscription", back_populates="product")
 
 
 class DiscountRule(Base):

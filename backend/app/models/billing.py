@@ -50,17 +50,28 @@ class Subscription(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
-    plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False)
+    plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
+    name = Column(String(255), nullable=True)
+    duration_mode = Column(String(50), nullable=True)  # LIFETIME, TILL_VALIDITY
+    validity_value = Column(Integer, nullable=True)
+    validity_unit = Column(String(50), nullable=True)  # MONTHS, YEARS
+    billing_frequency = Column(String(50), default="NONE", nullable=True)  # MONTHLY, QUARTERLY, YEARLY, NONE
+    subscription_start_trigger = Column(String(50), default="ORDER_ACTIVATION", nullable=True)
     status = Column(Enum(SubscriptionStatus), default=SubscriptionStatus.ACTIVE, nullable=False)
+    start_date = Column(DateTime(timezone=True), nullable=True)
+    end_date = Column(DateTime(timezone=True), nullable=True)
     current_period_start = Column(DateTime(timezone=True), nullable=True)
     current_period_end = Column(DateTime(timezone=True), nullable=True)
     renewal_date = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
     customer = relationship("Customer", back_populates="subscriptions")
     plan = relationship("SubscriptionPlan", back_populates="subscriptions")
     order = relationship("Order", back_populates="subscriptions")
+    product = relationship("Product", back_populates="subscriptions")
 
 
 class Invoice(Base):

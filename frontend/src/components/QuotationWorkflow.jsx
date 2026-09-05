@@ -562,6 +562,12 @@ export function QuotationWorkflow({ user, onNotify, onInspectDeal }) {
                     <tbody>
                       {(selectedQuote.lines || []).map((line) => {
                         const prod = products.find((p) => p.id === line.product_id);
+                        const hasSub = line.subscription_enabled || prod?.subscription_enabled;
+                        const subName = line.subscription_name || prod?.subscription_name;
+                        const durationMode = line.duration_mode || prod?.duration_mode;
+                        const validityVal = line.validity_value || prod?.validity_value || 1;
+                        const validityUnit = line.validity_unit || prod?.validity_unit || "MONTHS";
+
                         return (
                           <tr key={line.id}>
                             <td>
@@ -571,6 +577,28 @@ export function QuotationWorkflow({ user, onNotify, onInspectDeal }) {
                               {prod?.sku && (
                                 <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
                                   SKU: {prod.sku} • {line.line_type}
+                                </div>
+                              )}
+                              {hasSub && (
+                                <div style={{ marginTop: "0.25rem" }}>
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "0.3rem",
+                                      fontSize: "0.72rem",
+                                      fontWeight: 600,
+                                      padding: "0.15rem 0.45rem",
+                                      borderRadius: "4px",
+                                      backgroundColor: "#EFF6FF",
+                                      color: "#1D4ED8",
+                                      border: "1px solid #BFDBFE",
+                                    }}
+                                  >
+                                    <Sparkles size={11} /> Entitlement: {subName || "Included Service"} (
+                                    {durationMode === "LIFETIME" ? "Lifetime" : `${validityVal} ${validityUnit}`}
+                                    ) • Trigger: {line.subscription_start_trigger || "Order Activation"}
+                                  </span>
                                 </div>
                               )}
                             </td>
@@ -586,6 +614,28 @@ export function QuotationWorkflow({ user, onNotify, onInspectDeal }) {
                     </tbody>
                   </table>
                 </div>
+
+                {(selectedQuote.lines || []).some((l) => l.subscription_enabled) && (
+                  <div
+                    style={{
+                      marginTop: "0.75rem",
+                      padding: "0.6rem 0.85rem",
+                      borderRadius: "6px",
+                      backgroundColor: "#F0FDF4",
+                      border: "1px solid #BBF7D0",
+                      fontSize: "0.8rem",
+                      color: "#166534",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <Sparkles size={14} color="#16A34A" />
+                    <span>
+                      <strong>Included Entitlements Snapshot:</strong> Bundled subscriptions do not activate at the quotation stage. They activate automatically upon customer <strong>Order Activation</strong>.
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Discount Governance & Risk Evaluation */}
@@ -832,71 +882,97 @@ export function QuotationWorkflow({ user, onNotify, onInspectDeal }) {
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxHeight: "280px", overflowY: "auto", paddingRight: "0.25rem" }}>
-                  {quoteLines.map((line, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "2fr 70px 100px 90px 36px",
-                        gap: "0.5rem",
-                        alignItems: "center",
-                        padding: "0.5rem",
-                        background: "var(--bg-surface-elevated)",
-                        borderRadius: "var(--radius-sm)",
-                      }}
-                    >
-                      <select
-                        className="form-select"
-                        value={line.product_id}
-                        onChange={(e) => updateLine(idx, "product_id", e.target.value)}
-                        required
+                  {quoteLines.map((line, idx) => {
+                    const prod = products.find((p) => p.id === Number(line.product_id));
+                    return (
+                      <div
+                        key={idx}
+                        style={{
+                          padding: "0.5rem",
+                          background: "var(--bg-surface-elevated)",
+                          borderRadius: "var(--radius-sm)",
+                          border: prod?.subscription_enabled ? "1px solid #BFDBFE" : "1px solid transparent",
+                        }}
                       >
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} (${p.unit_price})
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="number"
-                        min="1"
-                        className="form-input"
-                        placeholder="Qty"
-                        value={line.quantity}
-                        onChange={(e) => updateLine(idx, "quantity", e.target.value)}
-                        required
-                      />
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        className="form-input"
-                        placeholder="Unit Price"
-                        value={line.unit_price}
-                        onChange={(e) => updateLine(idx, "unit_price", e.target.value)}
-                        required
-                      />
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="100"
-                        className="form-input"
-                        placeholder="Disc %"
-                        value={line.discount_percent}
-                        onChange={(e) => updateLine(idx, "discount_percent", e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        style={{ padding: "0.3rem", color: "var(--status-high)" }}
-                        onClick={() => removeLine(idx)}
-                        disabled={quoteLines.length === 1}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "2fr 70px 100px 90px 36px",
+                            gap: "0.5rem",
+                            alignItems: "center",
+                          }}
+                        >
+                          <select
+                            className="form-select"
+                            value={line.product_id}
+                            onChange={(e) => updateLine(idx, "product_id", e.target.value)}
+                            required
+                          >
+                            {products.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} (${p.unit_price})
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            min="1"
+                            className="form-input"
+                            placeholder="Qty"
+                            value={line.quantity}
+                            onChange={(e) => updateLine(idx, "quantity", e.target.value)}
+                            required
+                          />
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            className="form-input"
+                            placeholder="Unit Price"
+                            value={line.unit_price}
+                            onChange={(e) => updateLine(idx, "unit_price", e.target.value)}
+                            required
+                          />
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            className="form-input"
+                            placeholder="Disc %"
+                            value={line.discount_percent}
+                            onChange={(e) => updateLine(idx, "discount_percent", e.target.value)}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: "0.3rem", color: "var(--status-high)" }}
+                            onClick={() => removeLine(idx)}
+                            disabled={quoteLines.length === 1}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                        {prod?.subscription_enabled && (
+                          <div
+                            style={{
+                              marginTop: "0.35rem",
+                              fontSize: "0.72rem",
+                              color: "#1D4ED8",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.3rem",
+                              fontWeight: 600,
+                            }}
+                          >
+                            <Sparkles size={11} /> Auto-Inherited Entitlement: {prod.subscription_name} (
+                            {prod.duration_mode === "LIFETIME" ? "Lifetime Access" : `${prod.validity_value || 1} ${prod.validity_unit || "MONTHS"}`}
+                            ) • Frequency: {prod.billing_frequency === "NONE" ? "Free / Included" : prod.billing_frequency}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

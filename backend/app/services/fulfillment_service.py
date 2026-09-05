@@ -113,19 +113,12 @@ class FulfillmentService:
                 # Actually, the requirement says "The API should clearly expose requested_quantity, allocated, backordered".
                 pass
                 
-        order.status = OrderStatus.CONFIRMED
-        
-        audit = AuditLog(
-            user_id=user_id,
-            entity_type="Order",
-            entity_id=order.id,
-            action="FULFILLMENT_CONFIRMED",
-            new_value="Fulfillment confirmed"
-        )
-        db.add(audit)
-        
         db.commit()
         db.refresh(order)
+
+        # Activate order and any product-defined subscriptions
+        from app.services.order_service import order_service
+        order = order_service.activate_order(db, order.id, user_id)
         return order
 
 fulfillment_service = FulfillmentService()

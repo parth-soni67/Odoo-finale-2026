@@ -96,6 +96,41 @@ class QuoteService:
                 discount_amount=discount_amount,
                 line_total=line_total,
                 line_type=line_data.line_type or LineType.ONE_TIME,
+                subscription_enabled=(
+                    line_data.subscription_enabled
+                    if line_data.subscription_enabled is not None
+                    else bool(product.subscription_enabled)
+                ),
+                subscription_name=(
+                    line_data.subscription_name
+                    if line_data.subscription_name is not None
+                    else product.subscription_name
+                ),
+                duration_mode=(
+                    line_data.duration_mode
+                    if line_data.duration_mode is not None
+                    else product.duration_mode
+                ),
+                validity_value=(
+                    line_data.validity_value
+                    if line_data.validity_value is not None
+                    else product.validity_value
+                ),
+                validity_unit=(
+                    line_data.validity_unit
+                    if line_data.validity_unit is not None
+                    else product.validity_unit
+                ),
+                billing_frequency=(
+                    line_data.billing_frequency
+                    if line_data.billing_frequency is not None
+                    else product.billing_frequency
+                ),
+                subscription_start_trigger=(
+                    line_data.subscription_start_trigger
+                    if line_data.subscription_start_trigger is not None
+                    else (product.subscription_start_trigger or "ORDER_ACTIVATION")
+                ),
             )
             db.add(quote_line)
 
@@ -270,6 +305,41 @@ class QuoteService:
                     discount_amount=discount_amount,
                     line_total=line_total,
                     line_type=line_data.line_type or LineType.ONE_TIME,
+                    subscription_enabled=(
+                        line_data.subscription_enabled
+                        if line_data.subscription_enabled is not None
+                        else bool(product.subscription_enabled)
+                    ),
+                    subscription_name=(
+                        line_data.subscription_name
+                        if line_data.subscription_name is not None
+                        else product.subscription_name
+                    ),
+                    duration_mode=(
+                        line_data.duration_mode
+                        if line_data.duration_mode is not None
+                        else product.duration_mode
+                    ),
+                    validity_value=(
+                        line_data.validity_value
+                        if line_data.validity_value is not None
+                        else product.validity_value
+                    ),
+                    validity_unit=(
+                        line_data.validity_unit
+                        if line_data.validity_unit is not None
+                        else product.validity_unit
+                    ),
+                    billing_frequency=(
+                        line_data.billing_frequency
+                        if line_data.billing_frequency is not None
+                        else product.billing_frequency
+                    ),
+                    subscription_start_trigger=(
+                        line_data.subscription_start_trigger
+                        if line_data.subscription_start_trigger is not None
+                        else (product.subscription_start_trigger or "ORDER_ACTIVATION")
+                    ),
                 )
                 quote.lines.append(quote_line)
 

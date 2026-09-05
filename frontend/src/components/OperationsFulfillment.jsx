@@ -9,6 +9,7 @@ import {
   Warehouse as WarehouseIcon,
   Layers,
   ArrowRight,
+  Sparkles,
 } from "lucide-react";
 
 export function OperationsFulfillment({ onNotify }) {
@@ -16,6 +17,20 @@ export function OperationsFulfillment({ onNotify }) {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+
+  async function handleActivateOrder(orderId) {
+    setActionLoading(true);
+    try {
+      await api.activateOrder(orderId);
+      onNotify("Order activated and subscriptions initialized successfully!", "success");
+      await loadOrders();
+      await loadOrderDetail(orderId);
+    } catch (err) {
+      onNotify("Failed to activate order: " + err.message, "error");
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
   useEffect(() => {
     loadOrders();
@@ -131,9 +146,19 @@ export function OperationsFulfillment({ onNotify }) {
                   <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>
                     Fulfillment Execution
                   </div>
-                  <h2 style={{ fontSize: "1.4rem", fontWeight: 800, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <h2 style={{ fontSize: "1.4rem", fontWeight: 800, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
                     Order #{selectedOrder.order_number}
                     <span className="badge badge-info">{selectedOrder.status}</span>
+                    {selectedOrder.status === "PENDING" && (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        disabled={actionLoading}
+                        onClick={() => handleActivateOrder(selectedOrder.id)}
+                        style={{ marginLeft: "auto" }}
+                      >
+                        <CheckCircle2 size={13} /> {actionLoading ? "Activating..." : "Activate Order & Entitlements"}
+                      </button>
+                    )}
                   </h2>
                 </div>
               </div>
@@ -159,6 +184,28 @@ export function OperationsFulfillment({ onNotify }) {
                           <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginLeft: "0.5rem" }}>
                             ({line.product_sku})
                           </span>
+                        )}
+                        {line.subscription_enabled && (
+                          <div style={{ marginTop: "0.25rem" }}>
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "0.25rem",
+                                fontSize: "0.72rem",
+                                fontWeight: 600,
+                                padding: "0.15rem 0.45rem",
+                                borderRadius: "4px",
+                                backgroundColor: "#EFF6FF",
+                                color: "#1D4ED8",
+                                border: "1px solid #BFDBFE",
+                              }}
+                            >
+                              <Sparkles size={11} /> Entitlement: {line.subscription_name} (
+                              {line.duration_mode === "LIFETIME" ? "Lifetime" : `${line.validity_value || 1} ${line.validity_unit || "MONTHS"}`}
+                              )
+                            </span>
+                          </div>
                         )}
                       </div>
                       <span className="badge badge-neutral">Qty: {line.quantity}</span>
@@ -197,6 +244,55 @@ export function OperationsFulfillment({ onNotify }) {
                   </div>
                 ))}
               </div>
+
+              {/* Activated Subscriptions Card */}
+              {((selectedOrder.subscriptions && selectedOrder.subscriptions.length > 0) ||
+                (selectedOrder.lines || []).some((l) => l.subscription_enabled)) && (
+                <div style={{ marginBottom: "1.5rem" }}>
+                  <h4 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.6rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                    <Sparkles size={16} color="var(--primary)" /> Activated Subscriptions & Entitlements
+                  </h4>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "0.85rem" }}>
+                    {(selectedOrder.subscriptions && selectedOrder.subscriptions.length > 0
+                      ? selectedOrder.subscriptions
+                      : (selectedOrder.lines || []).filter((l) => l.subscription_enabled).map((l, i) => ({
+                          id: `sub-line-${i}`,
+                          name: l.subscription_name || "Bundled Service",
+                          status: selectedOrder.status === "CONFIRMED" || selectedOrder.status === "FULFILLED" ? "ACTIVE" : "PENDING_ACTIVATION",
+                          duration_mode: l.duration_mode || "TILL_VALIDITY",
+                          validity_value: l.validity_value || 1,
+                          validity_unit: l.validity_unit || "MONTHS",
+                          billing_frequency: l.billing_frequency || "NONE",
+                          start_date: selectedOrder.status === "CONFIRMED" ? selectedOrder.created_at : null,
+                          end_date: null,
+                        }))
+                    ).map((sub) => (
+                      <div
+                        key={sub.id}
+                        style={{
+                          padding: "1rem",
+                          backgroundColor: "#F8FAFC",
+                          borderRadius: "8px",
+                          border: "1px solid #BFDBFE",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
+                          <strong style={{ fontSize: "0.9rem", color: "var(--text-primary)" }}>{sub.name}</strong>
+                          <span className={`badge ${sub.status === "ACTIVE" ? "badge-healthy" : "badge-medium"}`}>
+                            {sub.status}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                          <div>Duration: <strong>{sub.duration_mode === "LIFETIME" ? "Lifetime Access" : `${sub.validity_value || 1} ${sub.validity_unit || "MONTHS"}`}</strong></div>
+                          <div>Billing: <strong>{sub.billing_frequency === "NONE" ? "Free / Included" : sub.billing_frequency}</strong></div>
+                          <div>Start Date: <strong>{sub.start_date ? new Date(sub.start_date).toLocaleDateString() : "Upon Order Activation"}</strong></div>
+                          <div>End Date: <strong>{sub.end_date ? new Date(sub.end_date).toLocaleDateString() : (sub.duration_mode === "LIFETIME" ? "Lifetime (No Expiry)" : "Calculated on activation")}</strong></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="card" style={{ textAlign: "center", padding: "3rem", color: "var(--text-muted)" }}>

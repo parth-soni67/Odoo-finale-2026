@@ -6,6 +6,9 @@ from app.models.order import OrderStatus, FulfillmentSplitStatus
 from app.schemas.customer import CustomerResponse
 
 
+from app.schemas.billing import SubscriptionResponse
+
+
 class FulfillmentSplitResponse(BaseModel):
     id: int
     order_line_id: int
@@ -28,6 +31,16 @@ class OrderLineResponse(BaseModel):
     discount_percent: float
     line_total: float
     line_type: LineType
+
+    # Subscription / Service Entitlement Snapshot
+    subscription_enabled: bool = False
+    subscription_name: Optional[str] = None
+    duration_mode: Optional[str] = None
+    validity_value: Optional[int] = None
+    validity_unit: Optional[str] = None
+    billing_frequency: Optional[str] = None
+    subscription_start_trigger: Optional[str] = None
+
     fulfillment_splits: List[FulfillmentSplitResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -43,6 +56,7 @@ class OrderResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     lines: List[OrderLineResponse] = []
+    subscriptions: List[SubscriptionResponse] = []
     customer: Optional[CustomerResponse] = None
 
     model_config = ConfigDict(from_attributes=True)

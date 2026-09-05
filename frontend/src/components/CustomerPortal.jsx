@@ -12,6 +12,7 @@ import {
   Send,
   AlertCircle,
   RotateCcw,
+  Sparkles,
 } from "lucide-react";
 
 function formatNegotiationDisplay(neg) {
@@ -435,6 +436,28 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                         <td>
                           <strong>{line.product_name}</strong>
                           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{line.line_type}</div>
+                          {line.subscription_enabled && (
+                            <div style={{ marginTop: "0.25rem" }}>
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.25rem",
+                                  fontSize: "0.72rem",
+                                  fontWeight: 600,
+                                  padding: "0.15rem 0.45rem",
+                                  borderRadius: "4px",
+                                  backgroundColor: "#EFF6FF",
+                                  color: "#1D4ED8",
+                                  border: "1px solid #BFDBFE",
+                                }}
+                              >
+                                <Sparkles size={11} /> Included Entitlement: {line.subscription_name || "Service Pass"} (
+                                {line.duration_mode === "LIFETIME" ? "Lifetime Access" : `${line.validity_value || 1} ${line.validity_unit || "MONTHS"}`}
+                                ) • Activates on Order
+                              </span>
+                            </div>
+                          )}
                         </td>
                         <td><code>{line.product_sku}</code></td>
                         <td>{line.quantity}</td>
@@ -697,6 +720,28 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                                             SKU: {line.product_sku}
                                           </div>
                                         )}
+                                        {line.subscription_enabled && (
+                                          <div style={{ marginTop: "0.25rem" }}>
+                                            <span
+                                              style={{
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: "0.25rem",
+                                                fontSize: "0.72rem",
+                                                fontWeight: 600,
+                                                padding: "0.15rem 0.45rem",
+                                                borderRadius: "4px",
+                                                backgroundColor: "#EFF6FF",
+                                                color: "#1D4ED8",
+                                                border: "1px solid #BFDBFE",
+                                              }}
+                                            >
+                                              <Sparkles size={11} /> Entitlement: {line.subscription_name || "Included Service"} (
+                                              {line.duration_mode === "LIFETIME" ? "Lifetime" : `${line.validity_value || 1} ${line.validity_unit || "MONTHS"}`}
+                                              )
+                                            </span>
+                                          </div>
+                                        )}
                                       </td>
                                       <td style={{ textAlign: "center", fontWeight: 700 }}>
                                         {line.quantity}
@@ -807,6 +852,75 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                           <span>{fulfillmentPercent}% Completed</span>
                         </div>
                       </div>
+
+                      {/* Activated Subscriptions & Entitlements Section */}
+                      {((selectedOrder.subscriptions && selectedOrder.subscriptions.length > 0) ||
+                        (selectedOrder.lines || []).some((l) => l.subscription_enabled)) && (
+                        <div style={{ marginBottom: "1.5rem" }}>
+                          <h4
+                            style={{
+                              fontSize: "0.95rem",
+                              fontWeight: 700,
+                              color: "var(--text-primary)",
+                              marginBottom: "0.75rem",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.03em",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.4rem",
+                            }}
+                          >
+                            <Sparkles size={16} color="var(--primary)" /> Activated Subscriptions & Entitlements
+                          </h4>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "0.85rem" }}>
+                            {(selectedOrder.subscriptions && selectedOrder.subscriptions.length > 0
+                              ? selectedOrder.subscriptions
+                              : (selectedOrder.lines || []).filter((l) => l.subscription_enabled).map((l, i) => ({
+                                  id: `line-${i}`,
+                                  name: l.subscription_name || "Bundled Entitlement",
+                                  status: selectedOrder.status === "CONFIRMED" || selectedOrder.status === "FULFILLED" ? "ACTIVE" : "PENDING_ACTIVATION",
+                                  duration_mode: l.duration_mode || "TILL_VALIDITY",
+                                  validity_value: l.validity_value || 1,
+                                  validity_unit: l.validity_unit || "MONTHS",
+                                  billing_frequency: l.billing_frequency || "NONE",
+                                  start_date: selectedOrder.status === "CONFIRMED" ? selectedOrder.created_at : null,
+                                  end_date: l.duration_mode === "LIFETIME" ? null : null,
+                                }))
+                            ).map((sub) => (
+                              <div
+                                key={sub.id}
+                                style={{
+                                  padding: "1rem",
+                                  backgroundColor: "#F8FAFC",
+                                  borderRadius: "8px",
+                                  border: "1px solid #BFDBFE",
+                                }}
+                              >
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                                  <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)" }}>{sub.name}</span>
+                                  <span className={`badge ${sub.status === "ACTIVE" ? "badge-healthy" : "badge-medium"}`}>
+                                    {sub.status}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                                  <div>
+                                    <strong>Duration:</strong> {sub.duration_mode === "LIFETIME" ? "Lifetime Access" : `${sub.validity_value || 1} ${sub.validity_unit || "MONTHS"}`}
+                                  </div>
+                                  <div>
+                                    <strong>Billing Frequency:</strong> {sub.billing_frequency === "NONE" ? "Free / Included" : sub.billing_frequency}
+                                  </div>
+                                  <div>
+                                    <strong>Start Date:</strong> {sub.start_date ? new Date(sub.start_date).toLocaleDateString() : "Upon Order Activation"}
+                                  </div>
+                                  <div>
+                                    <strong>End Date:</strong> {sub.end_date ? new Date(sub.end_date).toLocaleDateString() : (sub.duration_mode === "LIFETIME" ? "Lifetime (No Expiration)" : "Calculated from activation")}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Last Updated */}
                       <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", borderTop: "1px solid var(--border-subtle)", paddingTop: "0.75rem", display: "flex", justifyContent: "space-between" }}>

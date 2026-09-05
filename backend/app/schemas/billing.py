@@ -17,13 +17,22 @@ class SubscriptionPlanResponse(BaseModel):
 class SubscriptionResponse(BaseModel):
     id: int
     customer_id: int
-    plan_id: int
+    plan_id: Optional[int] = None
     order_id: Optional[int] = None
+    product_id: Optional[int] = None
+    name: Optional[str] = None
+    duration_mode: Optional[str] = None
+    validity_value: Optional[int] = None
+    validity_unit: Optional[str] = None
+    billing_frequency: Optional[str] = None
     status: SubscriptionStatus
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
     current_period_start: Optional[datetime] = None
     current_period_end: Optional[datetime] = None
     renewal_date: Optional[datetime] = None
     plan: Optional[SubscriptionPlanResponse] = None
+    created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
