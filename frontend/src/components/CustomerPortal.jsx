@@ -142,6 +142,11 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
   const [proposedValue, setProposedValue] = useState("");
   const [negLoading, setNegLoading] = useState(false);
 
+  // Billing & Subscriptions State
+  const [portalInvoices, setPortalInvoices] = useState([]);
+  const [portalSubscriptions, setPortalSubscriptions] = useState([]);
+  const [billingLoading, setBillingLoading] = useState(false);
+
   useEffect(() => {
     if (activeSubTab && activeSubTab !== activeTab) {
       setActiveTab(activeSubTab);
@@ -161,7 +166,24 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
   useEffect(() => {
     loadPortalData();
     loadOrders();
+    loadBillingData();
   }, []);
+
+  async function loadBillingData() {
+    setBillingLoading(true);
+    try {
+      const [invs, subs] = await Promise.all([
+        api.getPortalInvoices().catch(() => []),
+        api.getPortalSubscriptions().catch(() => []),
+      ]);
+      setPortalInvoices(invs || []);
+      setPortalSubscriptions(subs || []);
+    } catch {
+      // ignore
+    } finally {
+      setBillingLoading(false);
+    }
+  }
 
   async function loadPortalData() {
     setLoading(true);
@@ -238,6 +260,7 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
       onNotify(res.message || "Quote accepted successfully!", "success");
       loadPortalData();
       loadOrders();
+      loadBillingData();
       if (selectedQuote?.id === quoteId) {
         loadQuoteDetail(quoteId);
       }
@@ -327,9 +350,12 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
         </button>
         <button
           className={`nav-item ${activeTab === "billing" ? "active" : ""}`}
-          onClick={() => handleTabSelect("billing")}
+          onClick={() => {
+            handleTabSelect("billing");
+            loadBillingData();
+          }}
         >
-          <Receipt size={16} /> Billing & Invoices
+          <Receipt size={16} /> Billing & Invoices {portalInvoices.length > 0 ? `(${portalInvoices.length})` : ""}
         </button>
         <button
           className={`nav-item ${activeTab === "profile" ? "active" : ""}`}
@@ -942,13 +968,141 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
 
       {/* Tab: Billing */}
       {activeTab === "billing" && (
-        <div className="card" style={{ textAlign: "center", padding: "3rem 1.5rem" }}>
-          <Receipt size={42} color="var(--status-healthy)" style={{ marginBottom: "1rem" }} />
-          <h3 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "0.5rem" }}>Billing & Invoices</h3>
-          <p style={{ color: "var(--text-secondary)", maxWidth: "500px", margin: "0 auto 1.5rem auto", fontSize: "0.9rem" }}>
-            Hybrid billing invoices (one-time license hardware + recurring subscriptions) and payment receipts will be accessible here upon order processing.
-          </p>
-          <span className="badge badge-neutral">Invoices Available Upon Order Finalization</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          {/* Active Subscriptions & Recurring Entitlements */}
+          <div className="card">
+            <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="card-title" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <Sparkles size={18} color="var(--primary)" /> Active Subscriptions & Recurring Plans
+              </div>
+              <span className="badge badge-info">{portalSubscriptions.length} Plans</span>
+            </div>
+
+            {billingLoading ? (
+              <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>
+                Loading subscriptions and billing records...
+              </div>
+            ) : portalSubscriptions.length === 0 ? (
+              <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-secondary)" }}>
+                No active subscriptions yet. Subscriptions and service entitlements activate automatically upon quote acceptance.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem" }}>
+                {portalSubscriptions.map((sub) => (
+                  <div
+                    key={sub.id}
+                    style={{
+                      padding: "1.25rem",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--border-subtle)",
+                      background: "var(--bg-surface)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: 0, color: "var(--text-primary)" }}>
+                          {sub.name || "Software Entitlement"}
+                        </h4>
+                        {sub.order_id && (
+                          <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                            Order: ORD-{sub.order_id}
+                          </div>
+                        )}
+                      </div>
+                      <span className={`badge ${sub.status === "ACTIVE" ? "badge-healthy" : "badge-medium"}`}>
+                        {sub.status}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: "0.84rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "0.25rem", marginTop: "0.25rem" }}>
+                      <div>
+                        <strong>Duration:</strong> {sub.duration_mode === "LIFETIME" ? "Lifetime Access" : `${sub.validity_value || 1} ${sub.validity_unit || "MONTHS"}`}
+                      </div>
+                      <div>
+                        <strong>Billing Frequency:</strong> {sub.billing_frequency === "NONE" ? "Free / Included" : sub.billing_frequency}
+                      </div>
+                      <div>
+                        <strong>Start Date:</strong> {sub.start_date ? new Date(sub.start_date).toLocaleDateString() : "Upon Finalization"}
+                      </div>
+                      <div>
+                        <strong>End Date:</strong> {sub.end_date ? new Date(sub.end_date).toLocaleDateString() : (sub.duration_mode === "LIFETIME" ? "Lifetime (No Expiration)" : "Calculated from activation")}
+                      </div>
+                      {sub.next_billing_date && (
+                        <div style={{ color: "var(--primary)", fontWeight: 600 }}>
+                          <strong>Next Billing Date:</strong> {new Date(sub.next_billing_date).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Invoices & Commercial Statements */}
+          <div className="card">
+            <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="card-title" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <Receipt size={18} color="var(--status-healthy)" /> Invoices & Billing Statements
+              </div>
+              <span className="badge badge-neutral">{portalInvoices.length} Invoices</span>
+            </div>
+
+            {billingLoading ? (
+              <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>
+                Loading invoices...
+              </div>
+            ) : portalInvoices.length === 0 ? (
+              <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-secondary)" }}>
+                No invoices issued yet.
+              </div>
+            ) : (
+              <div className="table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Invoice #</th>
+                      <th>Order #</th>
+                      <th>Billing Type</th>
+                      <th>Amount</th>
+                      <th>Due Date</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {portalInvoices.map((inv) => {
+                      const amt = inv.total_amount !== undefined ? inv.total_amount : inv.amount || 0;
+                      return (
+                        <tr key={inv.id}>
+                          <td><strong>{inv.invoice_number}</strong></td>
+                          <td>{inv.order_id ? `ORD-${inv.order_id}` : "N/A"}</td>
+                          <td>
+                            <span className={`badge ${inv.billing_type === "RECURRING" ? "badge-info" : "badge-neutral"}`}>
+                              {inv.billing_type || "ONE_TIME"}
+                            </span>
+                          </td>
+                          <td style={{ fontWeight: 700 }}>
+                            ${Number(amt).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                            {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "30 Days"}
+                          </td>
+                          <td>
+                            <span className={`badge ${inv.status === "PAID" ? "badge-healthy" : "badge-info"}`}>
+                              {inv.status || "ISSUED"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

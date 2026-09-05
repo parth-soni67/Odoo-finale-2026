@@ -31,6 +31,7 @@ class SubscriptionResponse(BaseModel):
     current_period_start: Optional[datetime] = None
     current_period_end: Optional[datetime] = None
     renewal_date: Optional[datetime] = None
+    next_billing_date: Optional[datetime] = None
     plan: Optional[SubscriptionPlanResponse] = None
     created_at: Optional[datetime] = None
 

@@ -67,23 +67,43 @@ class BillingService:
 
             # If active and has recurring billing frequency (not NONE)
             if sub.status == SubscriptionStatus.ACTIVE and (sub.billing_frequency or "NONE").upper() not in ("NONE", ""):
-                # Find product unit price from order line
-                matching_line = next((l for l in order.lines if l.product_id == sub.product_id), None)
-                rec_amount = matching_line.line_total if matching_line else 0.0
-                if rec_amount > 0:
-                    rec_inv_number = f"INV-REC-{uuid.uuid4().hex[:8].upper()}"
-                    rec_invoice = Invoice(
-                        invoice_number=rec_inv_number,
-                        order_id=order.id,
-                        customer_id=order.customer_id,
-                        total_amount=rec_amount,
-                        status=InvoiceStatus.DRAFT,
-                        billing_type=BillingType.RECURRING,
-                        due_date=now_dt + timedelta(days=30)
-                    )
-                    db.add(rec_invoice)
-                    db.flush()
-                    invoices.append(rec_invoice)
+                # Calculate next_billing_date if missing
+                freq = (sub.billing_frequency or "NONE").upper()
+                if not sub.next_billing_date and sub.start_date and freq in ("MONTHLY", "QUARTERLY", "YEARLY"):
+                    from dateutil.relativedelta import relativedelta
+                    if freq == "MONTHLY":
+                        sub.next_billing_date = sub.start_date + relativedelta(months=1)
+                    elif freq == "QUARTERLY":
+                        sub.next_billing_date = sub.start_date + relativedelta(months=3)
+                    elif freq == "YEARLY":
+                        sub.next_billing_date = sub.start_date + relativedelta(years=1)
+                    if sub.end_date and sub.next_billing_date and sub.next_billing_date > sub.end_date:
+                        sub.next_billing_date = None
+                    sub.renewal_date = sub.next_billing_date
+
+                # Check if recurring invoice already exists for this order
+                existing_rec_inv = db.query(Invoice).filter(
+                    Invoice.order_id == order_id,
+                    Invoice.billing_type == BillingType.RECURRING
+                ).first()
+                if not existing_rec_inv:
+                    # Find product unit price from order line
+                    matching_line = next((l for l in order.lines if l.product_id == sub.product_id), None)
+                    rec_amount = matching_line.line_total if matching_line else 0.0
+                    if rec_amount > 0:
+                        rec_inv_number = f"INV-REC-{uuid.uuid4().hex[:8].upper()}"
+                        rec_invoice = Invoice(
+                            invoice_number=rec_inv_number,
+                            order_id=order.id,
+                            customer_id=order.customer_id,
+                            total_amount=rec_amount,
+                            status=InvoiceStatus.ISSUED,
+                            billing_type=BillingType.RECURRING,
+                            due_date=now_dt + timedelta(days=30)
+                        )
+                        db.add(rec_invoice)
+                        db.flush()
+                        invoices.append(rec_invoice)
             
         # Legacy recurring lines check
         for r_line in recurring_lines:

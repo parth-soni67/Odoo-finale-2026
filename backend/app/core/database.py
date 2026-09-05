@@ -75,6 +75,7 @@ def sync_db_schema(bind_engine=engine) -> None:
             ("subscription_start_trigger", "VARCHAR(50) DEFAULT 'ORDER_ACTIVATION'"),
             ("start_date", dt_type),
             ("end_date", dt_type),
+            ("next_billing_date", dt_type),
             ("created_at", dt_type),
         ],
     }

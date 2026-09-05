@@ -189,6 +189,10 @@ export const api = {
     return request("/portal/invoices");
   },
 
+  async getPortalSubscriptions() {
+    return request("/portal/subscriptions");
+  },
+
   // Deal Health
   async getDealHealth() {
     return request("/deal-health");

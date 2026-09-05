@@ -147,6 +147,10 @@ class PortalService:
         db.commit()
         db.refresh(quote)
 
+        # Automatically create order if it does not already exist
+        from app.services.order_service import order_service
+        order = order_service.create_order_from_quote(db, quote_id=quote.id, user_id=current_user.id, auto_activate_subscriptions=True)
+
         audit = AuditLog(
             user_id=current_user.id,
             entity_type="Quote",
@@ -162,7 +166,9 @@ class PortalService:
             "id": quote.id,
             "quote_number": quote.quote_number,
             "status": quote.status.value,
-            "message": "Quote accepted successfully by customer.",
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "message": "Quote accepted successfully and order created.",
         }
 
     def get_customer_orders(self, db: Session, current_user: User) -> List[Any]:
@@ -208,6 +214,17 @@ class PortalService:
         customer = customer_service.get_customer_for_user(db, current_user)
         invoices = db.query(Invoice).filter(Invoice.customer_id == customer.id).all()
         return invoices
+
+    def get_customer_subscriptions(self, db: Session, current_user: User) -> List[Any]:
+        customer = customer_service.get_customer_for_user(db, current_user)
+        from app.models.billing import Subscription
+        subscriptions = (
+            db.query(Subscription)
+            .filter(Subscription.customer_id == customer.id)
+            .order_by(Subscription.id.desc())
+            .all()
+        )
+        return subscriptions
 
 
 portal_service = PortalService()

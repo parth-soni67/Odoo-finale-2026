@@ -7,6 +7,8 @@ from app.models.user import User, Role
 from app.schemas.customer import CustomerResponse
 from app.schemas.negotiation import NegotiationCreate, NegotiationResponse
 from app.schemas.order import OrderResponse
+from app.schemas.billing import SubscriptionResponse
+from app.models.billing import Invoice, Subscription
 from app.services.portal_service import portal_service
 from app.services.negotiation_service import negotiation_service
 
@@ -103,17 +105,38 @@ def get_portal_order_detail(
 @router.get("/invoices")
 def get_portal_invoices(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(Role.CUSTOMER, Role.ADMIN)),
+    current_user: User = Depends(require_roles(Role.CUSTOMER, Role.FINANCE, Role.ADMIN)),
 ):
-    """Retrieve billing invoices and payment status for the customer."""
-    invoices = portal_service.get_customer_invoices(db, current_user)
+    """Retrieve billing invoices and payment status for the customer (or all invoices for finance/admin)."""
+    if current_user.role in (Role.FINANCE, Role.ADMIN):
+        invoices = db.query(Invoice).order_by(Invoice.id.desc()).all()
+    else:
+        invoices = portal_service.get_customer_invoices(db, current_user)
+
     results = []
     for inv in invoices:
+        amt = getattr(inv, "total_amount", getattr(inv, "amount", 0.0))
         results.append({
             "id": inv.id,
             "invoice_number": inv.invoice_number,
+            "order_id": inv.order_id,
             "status": inv.status.value if hasattr(inv.status, "value") else str(inv.status),
-            "amount": inv.amount,
+            "amount": amt,
+            "total_amount": amt,
+            "billing_type": inv.billing_type.value if hasattr(inv.billing_type, "value") else str(inv.billing_type),
             "due_date": inv.due_date.isoformat() if inv.due_date else None,
+            "created_at": inv.created_at.isoformat() if inv.created_at else None,
         })
     return results
+
+
+@router.get("/subscriptions", response_model=List[SubscriptionResponse])
+def get_portal_subscriptions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.CUSTOMER, Role.FINANCE, Role.ADMIN)),
+):
+    """Retrieve subscriptions for the customer (or all subscriptions for finance/admin)."""
+    if current_user.role in (Role.FINANCE, Role.ADMIN):
+        return db.query(Subscription).order_by(Subscription.id.desc()).all()
+    return portal_service.get_customer_subscriptions(db, current_user)
+
