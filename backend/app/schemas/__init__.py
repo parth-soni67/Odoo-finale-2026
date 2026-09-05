@@ -49,6 +49,19 @@ from app.schemas.billing import (
     PaymentResponse,
     InvoiceResponse,
 )
+from app.schemas.negotiation import (
+    NegotiationBase,
+    NegotiationCreate,
+    NegotiationResponse,
+    NegotiationAction,
+)
+from app.schemas.deal_health import (
+    DealHealthAlertResponse,
+    RecommendationItem,
+    DealHealthItem,
+    DealHealthSummaryResponse,
+    DealHealthDetailResponse,
+)
 
 __all__ = [
     "LoginRequest",
@@ -88,4 +101,13 @@ __all__ = [
     "PaymentCreate",
     "PaymentResponse",
     "InvoiceResponse",
+    "NegotiationBase",
+    "NegotiationCreate",
+    "NegotiationResponse",
+    "NegotiationAction",
+    "DealHealthAlertResponse",
+    "RecommendationItem",
+    "DealHealthItem",
+    "DealHealthSummaryResponse",
+    "DealHealthDetailResponse",
 ]

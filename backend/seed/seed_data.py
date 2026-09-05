@@ -12,6 +12,8 @@ from app.models.customer import Customer, CustomerTier
 from app.models.product import ProductCategory, Product, DiscountRule
 from app.models.warehouse import Warehouse, Inventory
 from app.models.billing import SubscriptionPlan
+from app.models.quote import Quote, QuoteLine, QuoteStatus, LineType
+from app.models.negotiation import Negotiation, NegotiationStatus
 
 # Common development password for all seed users
 DEMO_PASSWORD = "Demo1234!"
@@ -255,6 +257,138 @@ def seed_database(db: Session) -> None:
             print(f"Created subscription plan: {plan['name']}")
 
     db.commit()
+
+    # 9. Seed Demo Quotes and Negotiations
+    acme = db.query(Customer).filter(Customer.company_name == "Acme Corp").first()
+    technova = db.query(Customer).filter(Customer.company_name == "TechNova Solutions").first()
+    global_log = db.query(Customer).filter(Customer.company_name == "Global Logistics Inc").first()
+    salesrep = db.query(User).filter(User.email == "salesrep@dealflow360.internal").first()
+
+    iot_prod = db.query(Product).filter(Product.sku == "HW-IOT-100").first()
+    lic_prod = db.query(Product).filter(Product.sku == "SW-DF360-LIC").first()
+    supp_prod = db.query(Product).filter(Product.sku == "SUB-SUPP-247").first()
+
+    if acme and salesrep and iot_prod:
+        # Quote 1: Acme Corp - Demo judge target quote
+        q1 = db.query(Quote).filter(Quote.quote_number == "Q-2026-001").first()
+        if not q1:
+            q1 = Quote(
+                quote_number="Q-2026-001",
+                customer_id=acme.id,
+                created_by=salesrep.id,
+                status=QuoteStatus.APPROVED,
+                subtotal=3200.0,
+                total_discount=232.0,
+                total_amount=2968.0,
+                risk_score=18.0,
+                requires_approval=False,
+            )
+            db.add(q1)
+            db.commit()
+            db.refresh(q1)
+
+            line1 = QuoteLine(
+                quote_id=q1.id,
+                product_id=iot_prod.id,
+                quantity=2,
+                unit_price=1200.0,
+                discount_percent=8.0,
+                discount_amount=192.0,
+                line_total=2208.0,
+                line_type=LineType.ONE_TIME,
+            )
+            line2 = QuoteLine(
+                quote_id=q1.id,
+                product_id=supp_prod.id if supp_prod else iot_prod.id,
+                quantity=1,
+                unit_price=800.0,
+                discount_percent=5.0,
+                discount_amount=40.0,
+                line_total=760.0,
+                line_type=LineType.RECURRING,
+            )
+            db.add_all([line1, line2])
+            db.commit()
+            print(f"Created demo quote: {q1.quote_number} (Acme Corp)")
+
+        # Quote 2: TechNova - High Risk Deal
+        if technova and lic_prod:
+            q2 = db.query(Quote).filter(Quote.quote_number == "Q-2026-002").first()
+            if not q2:
+                q2 = Quote(
+                    quote_number="Q-2026-002",
+                    customer_id=technova.id,
+                    created_by=salesrep.id,
+                    status=QuoteStatus.PENDING_APPROVAL,
+                    subtotal=10000.0,
+                    total_discount=2500.0,
+                    total_amount=7500.0,
+                    risk_score=68.0,
+                    requires_approval=True,
+                )
+                db.add(q2)
+                db.commit()
+                db.refresh(q2)
+
+                q2_line = QuoteLine(
+                    quote_id=q2.id,
+                    product_id=lic_prod.id,
+                    quantity=2,
+                    unit_price=5000.0,
+                    discount_percent=25.0,
+                    discount_amount=2500.0,
+                    line_total=7500.0,
+                    line_type=LineType.ONE_TIME,
+                )
+                db.add(q2_line)
+                db.commit()
+
+                # Seed active negotiation on Q2
+                neg = Negotiation(
+                    quote_id=q2.id,
+                    customer_id=technova.id,
+                    requested_change="discount_percent",
+                    previous_value="25.0",
+                    proposed_value="28.0",
+                    status=NegotiationStatus.PENDING,
+                )
+                db.add(neg)
+                db.commit()
+                print(f"Created demo quote: {q2.quote_number} (TechNova - Pending Negotiation)")
+
+        # Quote 3: Global Logistics - Enterprise Deal
+        if global_log and iot_prod:
+            q3 = db.query(Quote).filter(Quote.quote_number == "Q-2026-003").first()
+            if not q3:
+                q3 = Quote(
+                    quote_number="Q-2026-003",
+                    customer_id=global_log.id,
+                    created_by=salesrep.id,
+                    status=QuoteStatus.APPROVED,
+                    subtotal=12000.0,
+                    total_discount=1800.0,
+                    total_amount=10200.0,
+                    risk_score=22.0,
+                    requires_approval=False,
+                )
+                db.add(q3)
+                db.commit()
+                db.refresh(q3)
+
+                q3_line = QuoteLine(
+                    quote_id=q3.id,
+                    product_id=iot_prod.id,
+                    quantity=10,
+                    unit_price=1200.0,
+                    discount_percent=15.0,
+                    discount_amount=1800.0,
+                    line_total=10200.0,
+                    line_type=LineType.ONE_TIME,
+                )
+                db.add(q3_line)
+                db.commit()
+                print(f"Created demo quote: {q3.quote_number} (Global Logistics)")
+
     print("--- Database Seeding Completed Successfully ---")
 
 

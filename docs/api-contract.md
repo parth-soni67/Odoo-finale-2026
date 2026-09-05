@@ -106,13 +106,41 @@ Authorization: Bearer <JWT_ACCESS_TOKEN>
 The following endpoints represent agreed data contracts for Person 2, Person 3, and Person 4.
 > **Status Note**: Marked as `[PLANNED / NOT IMPLEMENTED]` in the foundation stage.
 
-### 3.1 Catalog & Customers [PLANNED]
-- **`GET /api/products`** `[PLANNED / NOT IMPLEMENTED]`
+### 3.1 Catalog & Customers [IMPLEMENTED - Person 4]
+- **`GET /api/products`** `[IMPLEMENTED]`
+  - Access: Authenticated (Active items enforced for `CUSTOMER`)
+  - Query: `search`, `category_id`, `is_active`, `skip`, `limit`
+  - Response 200: Array of `ProductResponse` (`id`, `name`, `sku`, `category`, `unit_price`, `cost_price`, `allowed_discount_percent`, `is_active`)
+- **`GET /api/products/categories`** `[IMPLEMENTED]`
   - Access: Authenticated
-  - Response 200: Array of `ProductResponse` (`id`, `name`, `sku`, `category_id`, `unit_price`, `allowed_discount_percent`, `is_active`)
-- **`GET /api/customers`** `[PLANNED / NOT IMPLEMENTED]`
-  - Access: Authenticated
-  - Response 200: Array of `CustomerResponse` (`id`, `company_name`, `contact_name`, `email`, `tier`, `discount_ceiling`)
+  - Response 200: Array of `ProductCategoryResponse` (`id`, `name`, `description`)
+- **`POST /api/products`** `[IMPLEMENTED]`
+  - Access: `ADMIN`, `SALES_MANAGER`
+  - Request: `ProductCreate`
+  - Response 201: `ProductResponse`
+- **`PUT /api/products/{id}`** `[IMPLEMENTED]`
+  - Access: `ADMIN`, `SALES_MANAGER`
+  - Request: `ProductUpdate`
+  - Response 200: `ProductResponse`
+- **`DELETE /api/products/{id}`** `[IMPLEMENTED]`
+  - Access: `ADMIN`, `SALES_MANAGER`
+  - Query: `hard_delete=false`
+  - Response 200: `ProductResponse`
+- **`GET /api/customers`** `[IMPLEMENTED]`
+  - Access: `ADMIN`, `SALES_MANAGER`, `SALES_REP`, `FINANCE`
+  - Query: `search`, `tier`, `skip`, `limit`
+  - Response 200: Array of `CustomerResponse` (`id`, `company_name`, `contact_name`, `email`, `phone`, `tier`, `discount_ceiling`, `created_at`)
+- **`GET /api/customers/{id}`** `[IMPLEMENTED]`
+  - Access: Authenticated (Strict isolation: `CUSTOMER` role restricted to own customer id)
+  - Response 200: `CustomerResponse`
+- **`POST /api/customers`** `[IMPLEMENTED]`
+  - Access: `ADMIN`, `SALES_MANAGER`
+  - Request: `CustomerCreate`
+  - Response 201: `CustomerResponse`
+- **`PUT /api/customers/{id}`** `[IMPLEMENTED]`
+  - Access: `ADMIN`, `SALES_MANAGER`
+  - Request: `CustomerUpdate`
+  - Response 200: `CustomerResponse`
 
 ### 3.2 Quotations & Risk Assessment [PLANNED]
 - **`POST /api/quotes`** `[PLANNED / NOT IMPLEMENTED]`
@@ -183,14 +211,55 @@ The following endpoints represent agreed data contracts for Person 2, Person 3, 
   - Request: `{"invoice_id": 1, "amount": 11000.0, "payment_method": "SIMULATED_CARD"}`
   - Response 200: `PaymentResponse` (`payment_status: "SUCCESSFUL"`, `transaction_id`)
 
-### 3.7 Customer Negotiation Portal [PLANNED]
-- **`GET /api/portal/quotes/{quote_id}`** `[PLANNED / NOT IMPLEMENTED]`
+### 3.7 Customer Negotiation Portal [IMPLEMENTED - Person 4]
+- **`GET /api/portal/profile`** `[IMPLEMENTED]`
   - Access: `CUSTOMER`, `ADMIN`
-  - Response 200: Customer-facing quote summary.
-- **`POST /api/portal/quotes/{quote_id}/negotiate`** `[PLANNED / NOT IMPLEMENTED]`
-  - Access: `CUSTOMER`
-  - Request: `{"requested_change": "discount_percent", "proposed_value": "18.0"}`
+  - Response 200: Authenticated customer company details, tier, and discount ceiling.
+- **`GET /api/portal/quotes`** `[IMPLEMENTED]`
+  - Access: `CUSTOMER`, `ADMIN`
+  - Response 200: Array of quotes owned by the authenticated customer.
+- **`GET /api/portal/quotes/{quote_id}`** `[IMPLEMENTED]`
+  - Access: `CUSTOMER`, `ADMIN` (Strict multi-tenant customer isolation enforced)
+  - Response 200: Customer-facing quote details (lines, pricing, discounts, negotiation history, omitting internal risk/manager notes).
+- **`POST /api/portal/quotes/{quote_id}/negotiate`** `[IMPLEMENTED]`
+  - Access: `CUSTOMER`, `ADMIN`
+  - Request: `{"requested_change": "discount_percent", "proposed_value": "12.0"}`
   - Response 201: Created `Negotiation` record with `status: "PENDING"`.
-- **`POST /api/portal/quotes/{quote_id}/confirm`** `[PLANNED / NOT IMPLEMENTED]`
-  - Access: `CUSTOMER`
-  - Response 200: Converts approved quote to confirmed `Order`.
+- **`POST /api/portal/quotes/{quote_id}/confirm`** `[IMPLEMENTED]`
+  - Access: `CUSTOMER`, `ADMIN`
+  - Response 200: Customer confirms/accepts approved quote.
+- **`GET /api/portal/orders`** `[IMPLEMENTED]`
+  - Access: `CUSTOMER`, `ADMIN`
+  - Response 200: Customer fulfillment tracking (empty array awaiting Person 3 fulfillment).
+- **`GET /api/portal/invoices`** `[IMPLEMENTED]`
+  - Access: `CUSTOMER`, `ADMIN`
+  - Response 200: Customer billing invoices (empty array awaiting Person 3 billing).
+
+### 3.8 Internal Negotiation Review & Re-approval [IMPLEMENTED - Person 4]
+- **`GET /api/quotes/{quote_id}/negotiations`** `[IMPLEMENTED]`
+  - Access: Authenticated (Owner customer or internal sales roles)
+  - Response 200: Negotiation history thread for a quote.
+- **`GET /api/negotiations`** `[IMPLEMENTED]`
+  - Access: `ADMIN`, `SALES_MANAGER`, `SALES_REP`
+  - Query: `status` (PENDING, APPROVED, REJECTED)
+  - Response 200: List of negotiations across quotes.
+- **`POST /api/negotiations/{id}/approve`** `[IMPLEMENTED]`
+  - Access: `ADMIN`, `SALES_MANAGER`
+  - Request: `{"comments": "Approved 12% discount"}`
+  - Behavior: Updates quote lines/total discount, triggers re-approval workflow (`status = PENDING_APPROVAL`, `requires_approval = True`), records AuditLog.
+  - Response 200: Updated `NegotiationResponse`.
+- **`POST /api/negotiations/{id}/reject`** `[IMPLEMENTED]`
+  - Access: `ADMIN`, `SALES_MANAGER`
+  - Request: `{"comments": "Exceeds discount policy"}`
+  - Response 200: Updated `NegotiationResponse`.
+
+### 3.9 Deal Health & Reporting [IMPLEMENTED - Person 4]
+- **`GET /api/deal-health`** `[IMPLEMENTED]`
+  - Access: `ADMIN`, `SALES_MANAGER`, `SALES_REP`, `FINANCE`
+  - Response 200: `DealHealthSummaryResponse` with KPI cards (total active, healthy, medium, high risk, pending approval, active negotiations) and itemized deals table with deterministic scores (0-100), risk levels, detected signals, and next actions.
+- **`GET /api/deal-health/{quote_id}`** `[IMPLEMENTED]`
+  - Access: `ADMIN`, `SALES_MANAGER`, `SALES_REP`, `FINANCE`
+  - Response 200: Detailed deal health diagnosis, risk signals list, and actionable recommendations.
+- **`GET /api/reports/sales-summary`** `[IMPLEMENTED]`
+  - Access: `ADMIN`, `SALES_MANAGER`, `SALES_REP`, `FINANCE`
+  - Response 200: Executive aggregate sales metrics (total pipeline value, approved value, conversion ratios, active counter-offers, customer/product counts).
