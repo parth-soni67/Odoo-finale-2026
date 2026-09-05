@@ -236,7 +236,7 @@ class BillingService:
             # Check if validity period has expired
             if duration_mode == "TILL_VALIDITY" and sub.end_date:
                 end_cmp = sub.end_date if sub.end_date.tzinfo else sub.end_date.replace(tzinfo=timezone.utc)
-                if simulated_date and simulated_date >= end_cmp:
+                if now_utc >= end_cmp:
                     sub.status = SubscriptionStatus.EXPIRED
                     expired_subs += 1
                     continue

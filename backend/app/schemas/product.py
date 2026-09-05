@@ -25,7 +25,7 @@ class ProductBase(BaseModel):
     category_id: Optional[int] = None
     description: Optional[str] = None
     unit_price: float
-    cost_price: float
+    cost_price: float = 0.0
     allowed_discount_percent: float = 0.0
     is_active: bool = True
     fulfillment_type: str = "PHYSICAL"

@@ -9,7 +9,6 @@ import {
   Check,
   X,
   Tag,
-  Sparkles,
 } from "lucide-react";
 
 export function ProductManagement({ user, onNotify }) {
@@ -27,18 +26,12 @@ export function ProductManagement({ user, onNotify }) {
     sku: "",
     category_id: "",
     unit_price: "",
-    cost_price: "",
+    cost_price: 0.0,
     allowed_discount_percent: 15.0,
     description: "",
     fulfillment_type: "PHYSICAL",
     is_active: true,
     subscription_enabled: false,
-    subscription_name: "",
-    duration_mode: "TILL_VALIDITY",
-    validity_value: 3,
-    validity_unit: "MONTHS",
-    billing_frequency: "MONTHLY",
-    subscription_start_trigger: "ORDER_ACTIVATION",
   });
 
   const canManage = user?.role === "ADMIN" || user?.role === "SALES_MANAGER";
@@ -73,17 +66,11 @@ export function ProductManagement({ user, onNotify }) {
       category_id: categories[0]?.id || "",
       fulfillment_type: "PHYSICAL",
       unit_price: "",
-      cost_price: "",
+      cost_price: 0.0,
       allowed_discount_percent: 15.0,
       description: "",
       is_active: true,
       subscription_enabled: false,
-      subscription_name: "",
-      duration_mode: "TILL_VALIDITY",
-      validity_value: 3,
-      validity_unit: "MONTHS",
-      billing_frequency: "MONTHLY",
-      subscription_start_trigger: "ORDER_ACTIVATION",
     });
     setIsModalOpen(true);
   }
@@ -96,17 +83,11 @@ export function ProductManagement({ user, onNotify }) {
       category_id: prod.category_id || "",
       fulfillment_type: prod.fulfillment_type || "PHYSICAL",
       unit_price: prod.unit_price,
-      cost_price: prod.cost_price,
+      cost_price: prod.cost_price || 0.0,
       allowed_discount_percent: prod.allowed_discount_percent,
       description: prod.description || "",
       is_active: prod.is_active,
-      subscription_enabled: !!prod.subscription_enabled,
-      subscription_name: prod.subscription_name || "",
-      duration_mode: prod.duration_mode || "TILL_VALIDITY",
-      validity_value: prod.validity_value || 3,
-      validity_unit: prod.validity_unit || "MONTHS",
-      billing_frequency: prod.billing_frequency || "MONTHLY",
-      subscription_start_trigger: prod.subscription_start_trigger || "ORDER_ACTIVATION",
+      subscription_enabled: false,
     });
     setIsModalOpen(true);
   }
@@ -115,12 +96,16 @@ export function ProductManagement({ user, onNotify }) {
     e.preventDefault();
     try {
       const payload = {
-        ...formData,
+        name: formData.name,
+        sku: formData.sku,
         category_id: formData.category_id ? parseInt(formData.category_id) : null,
+        fulfillment_type: formData.fulfillment_type,
         unit_price: parseFloat(formData.unit_price),
-        cost_price: parseFloat(formData.cost_price),
+        cost_price: formData.cost_price !== "" && formData.cost_price !== undefined ? parseFloat(formData.cost_price) : 0.0,
         allowed_discount_percent: parseFloat(formData.allowed_discount_percent),
-        validity_value: formData.subscription_enabled && formData.duration_mode === "TILL_VALIDITY" ? parseInt(formData.validity_value) || 1 : null,
+        description: formData.description || "",
+        is_active: formData.is_active,
+        subscription_enabled: false,
       };
 
       if (editingProduct) {
@@ -133,7 +118,7 @@ export function ProductManagement({ user, onNotify }) {
       setIsModalOpen(false);
       loadData();
     } catch (err) {
-      onNotify("Failed to save product: " + err.message, "error");
+      onNotify("Error saving product: " + err.message, "error");
     }
   }
 
@@ -231,27 +216,6 @@ export function ProductManagement({ user, onNotify }) {
                   <tr key={p.id}>
                     <td>
                       <strong style={{ color: "var(--text-primary)" }}>{p.name}</strong>
-                      {p.subscription_enabled && (
-                        <div style={{ marginTop: "0.25rem" }}>
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "0.3rem",
-                              fontSize: "0.72rem",
-                              fontWeight: 600,
-                              padding: "0.2rem 0.5rem",
-                              borderRadius: "4px",
-                              backgroundColor: "#EFF6FF",
-                              color: "#1D4ED8",
-                              border: "1px solid #BFDBFE",
-                            }}
-                          >
-                            <Sparkles size={11} />
-                            {p.subscription_name || "Included Service"}: {p.duration_mode === "LIFETIME" ? "Lifetime" : `${p.validity_value || 1} ${p.validity_unit || "MONTHS"}`}
-                          </span>
-                        </div>
-                      )}
                       {p.description && (
                         <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", maxWidth: "280px", marginTop: "0.2rem" }}>
                           {p.description}
@@ -383,7 +347,7 @@ export function ProductManagement({ user, onNotify }) {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div className="form-group">
                   <label className="form-label">Unit Price ($)</label>
                   <input
@@ -392,18 +356,6 @@ export function ProductManagement({ user, onNotify }) {
                     className="form-input"
                     value={formData.unit_price}
                     onChange={(e) => setFormData({ ...formData, unit_price: e.target.value })}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Cost Price ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="form-input"
-                    value={formData.cost_price}
-                    onChange={(e) => setFormData({ ...formData, cost_price: e.target.value })}
                     required
                   />
                 </div>
@@ -429,107 +381,6 @@ export function ProductManagement({ user, onNotify }) {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 />
-              </div>
-
-              {/* Subscription / Service Entitlement Section */}
-              <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "1rem", marginTop: "1rem" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
-                  <div>
-                    <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.4rem", margin: 0 }}>
-                      <Sparkles size={16} color="var(--primary)" /> Subscription / Service Entitlement
-                    </h3>
-                    <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: "0.2rem 0 0" }}>
-                      Bundled service that automatically activates when an order is confirmed.
-                    </p>
-                  </div>
-                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}>
-                    <input
-                      type="checkbox"
-                      checked={formData.subscription_enabled}
-                      onChange={(e) => setFormData({ ...formData, subscription_enabled: e.target.checked })}
-                      style={{ width: "16px", height: "16px", accentColor: "var(--primary)" }}
-                    />
-                    <span>Include Entitlement</span>
-                  </label>
-                </div>
-
-                {formData.subscription_enabled && (
-                  <div style={{ backgroundColor: "#F8FAFC", border: "1px solid var(--border-color)", borderRadius: "8px", padding: "1rem" }}>
-                    <div className="form-group" style={{ marginBottom: "0.75rem" }}>
-                      <label className="form-label" style={{ fontSize: "0.8rem" }}>Entitlement / Subscription Name</label>
-                      <input
-                        type="text"
-                        className="form-input"
-                        placeholder="e.g. Premium 24/7 Support, Enterprise Cloud SLA"
-                        value={formData.subscription_name}
-                        onChange={(e) => setFormData({ ...formData, subscription_name: e.target.value })}
-                        required={formData.subscription_enabled}
-                      />
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
-                      <div className="form-group">
-                        <label className="form-label" style={{ fontSize: "0.8rem" }}>Duration Mode</label>
-                        <select
-                          className="form-select"
-                          value={formData.duration_mode}
-                          onChange={(e) => setFormData({ ...formData, duration_mode: e.target.value })}
-                        >
-                          <option value="TILL_VALIDITY">Till Validity</option>
-                          <option value="LIFETIME">Lifetime</option>
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label" style={{ fontSize: "0.8rem" }}>Billing Frequency</label>
-                        <select
-                          className="form-select"
-                          value={formData.billing_frequency}
-                          onChange={(e) => setFormData({ ...formData, billing_frequency: e.target.value })}
-                        >
-                          <option value="NONE">None (Included / Free Entitlement)</option>
-                          <option value="MONTHLY">Monthly</option>
-                          <option value="QUARTERLY">Quarterly</option>
-                          <option value="YEARLY">Yearly</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {formData.duration_mode === "TILL_VALIDITY" && (
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
-                        <div className="form-group">
-                          <label className="form-label" style={{ fontSize: "0.8rem" }}>Validity Duration</label>
-                          <input
-                            type="number"
-                            min="1"
-                            className="form-input"
-                            value={formData.validity_value}
-                            onChange={(e) => setFormData({ ...formData, validity_value: e.target.value })}
-                            required
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label" style={{ fontSize: "0.8rem" }}>Validity Unit</label>
-                          <select
-                            className="form-select"
-                            value={formData.validity_unit}
-                            onChange={(e) => setFormData({ ...formData, validity_unit: e.target.value })}
-                          >
-                            <option value="MONTHS">Months</option>
-                            <option value="YEARS">Years</option>
-                          </select>
-                        </div>
-                      </div>
-                    )}
-
-                    <div style={{ backgroundColor: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "6px", padding: "0.6rem 0.8rem", fontSize: "0.8rem", color: "#1E3A8A" }}>
-                      <strong>Configuration Summary: </strong>
-                      This product bundles <strong>{formData.subscription_name || "Service Entitlement"}</strong> (
-                      {formData.duration_mode === "LIFETIME" ? "Lifetime Access" : `${formData.validity_value || 1} ${formData.validity_unit || "MONTHS"}`}
-                      ). Billing: <strong>{formData.billing_frequency === "NONE" ? "Free / Included" : formData.billing_frequency}</strong>. Starts automatically on <strong>Order Activation</strong>.
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1.5rem" }}>

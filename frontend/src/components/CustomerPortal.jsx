@@ -692,14 +692,14 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                       setIsNegModalOpen(true);
                     }}
                   >
-                    <MessageSquare size={14} /> Request Change
+                    <MessageSquare size={14} /> Request Adjustment
                   </button>
                   {selectedQuote.status === "APPROVED" && (
                     <button
                       className="btn btn-success btn-sm"
                       onClick={() => handleConfirmQuote(selectedQuote.id)}
                     >
-                      <CheckCircle2 size={14} /> Confirm Quote
+                      <CheckCircle2 size={14} /> Accept Quote
                     </button>
                   )}
                 </div>
@@ -723,26 +723,31 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                       <tr key={line.id}>
                         <td>
                           <strong>{line.product_name}</strong>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{line.line_type}</div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{line.subscription_enabled ? "Subscription Item" : "One-Time Item"}</div>
                           {line.subscription_enabled && (
-                            <div style={{ marginTop: "0.25rem" }}>
+                            <div style={{ marginTop: "0.35rem" }}>
                               <span
                                 style={{
                                   display: "inline-flex",
                                   alignItems: "center",
-                                  gap: "0.25rem",
-                                  fontSize: "0.72rem",
+                                  gap: "0.35rem",
+                                  fontSize: "0.74rem",
                                   fontWeight: 600,
-                                  padding: "0.15rem 0.45rem",
+                                  padding: "0.2rem 0.55rem",
                                   borderRadius: "4px",
                                   backgroundColor: "#EFF6FF",
                                   color: "#1D4ED8",
                                   border: "1px solid #BFDBFE",
                                 }}
                               >
-                                <Sparkles size={11} /> Included Entitlement: {line.subscription_name || "Service Pass"} (
-                                {line.duration_mode === "LIFETIME" ? "Lifetime Access" : `${line.validity_value || 1} ${line.validity_unit || "MONTHS"}`}
-                                ) • Activates on Order
+                                <Sparkles size={12} />
+                                {line.duration_mode === "LIFETIME" ? (
+                                  <span>Subscription: <strong>Lifetime</strong> • Included • No recurring billing</span>
+                                ) : (
+                                  <span>
+                                    Subscription: <strong>{line.validity_value || 1} {line.validity_unit || "Months"}</strong> • {line.billing_frequency === "NONE" ? "Included / No recurring billing" : `${line.billing_frequency} Billing`}
+                                  </span>
+                                )}
                               </span>
                             </div>
                           )}

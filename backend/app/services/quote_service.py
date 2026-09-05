@@ -87,6 +87,32 @@ class QuoteService:
             discount_amount = round(gross * (discount_pct / 100.0), 2)
             line_total = round(gross - discount_amount, 2)
 
+            # Determine subscription enabled per line
+            if line_data.subscription_enabled is not None:
+                is_sub = bool(line_data.subscription_enabled)
+            else:
+                is_sub = bool(getattr(product, "subscription_enabled", False)) or (line_data.line_type == LineType.RECURRING)
+
+            sub_name = None
+            dur_mode = None
+            val_val = None
+            val_unit = None
+            bill_freq = "NONE"
+            start_trig = "ORDER_ACTIVATION"
+
+            if is_sub:
+                sub_name = line_data.subscription_name or (product.subscription_name if product.subscription_enabled else f"{product.name} Subscription")
+                dur_mode = line_data.duration_mode or (product.duration_mode if product.subscription_enabled else "TILL_VALIDITY")
+                if (dur_mode or "").upper() == "LIFETIME":
+                    val_val = None
+                    val_unit = None
+                    bill_freq = "NONE"
+                else:
+                    val_val = line_data.validity_value if line_data.validity_value is not None else (product.validity_value if product.subscription_enabled else 3)
+                    val_unit = line_data.validity_unit or (product.validity_unit if product.subscription_enabled else "MONTHS")
+                    bill_freq = line_data.billing_frequency or (product.billing_frequency if product.subscription_enabled else "MONTHLY")
+                start_trig = line_data.subscription_start_trigger or "ORDER_ACTIVATION"
+
             quote_line = QuoteLine(
                 quote_id=quote.id,
                 product_id=product.id,
@@ -96,41 +122,13 @@ class QuoteService:
                 discount_amount=discount_amount,
                 line_total=line_total,
                 line_type=line_data.line_type or LineType.ONE_TIME,
-                subscription_enabled=(
-                    line_data.subscription_enabled
-                    if line_data.subscription_enabled is not None
-                    else bool(product.subscription_enabled)
-                ),
-                subscription_name=(
-                    line_data.subscription_name
-                    if line_data.subscription_name is not None
-                    else product.subscription_name
-                ),
-                duration_mode=(
-                    line_data.duration_mode
-                    if line_data.duration_mode is not None
-                    else product.duration_mode
-                ),
-                validity_value=(
-                    line_data.validity_value
-                    if line_data.validity_value is not None
-                    else product.validity_value
-                ),
-                validity_unit=(
-                    line_data.validity_unit
-                    if line_data.validity_unit is not None
-                    else product.validity_unit
-                ),
-                billing_frequency=(
-                    line_data.billing_frequency
-                    if line_data.billing_frequency is not None
-                    else product.billing_frequency
-                ),
-                subscription_start_trigger=(
-                    line_data.subscription_start_trigger
-                    if line_data.subscription_start_trigger is not None
-                    else (product.subscription_start_trigger or "ORDER_ACTIVATION")
-                ),
+                subscription_enabled=is_sub,
+                subscription_name=sub_name,
+                duration_mode=dur_mode,
+                validity_value=val_val,
+                validity_unit=val_unit,
+                billing_frequency=bill_freq,
+                subscription_start_trigger=start_trig,
             )
             db.add(quote_line)
 
@@ -296,6 +294,32 @@ class QuoteService:
                 discount_amount = round(gross * (discount_pct / 100.0), 2)
                 line_total = round(gross - discount_amount, 2)
 
+                # Determine subscription enabled per line
+                if line_data.subscription_enabled is not None:
+                    is_sub = bool(line_data.subscription_enabled)
+                else:
+                    is_sub = bool(getattr(product, "subscription_enabled", False)) or (line_data.line_type == LineType.RECURRING)
+
+                sub_name = None
+                dur_mode = None
+                val_val = None
+                val_unit = None
+                bill_freq = "NONE"
+                start_trig = "ORDER_ACTIVATION"
+
+                if is_sub:
+                    sub_name = line_data.subscription_name or (product.subscription_name if product.subscription_enabled else f"{product.name} Subscription")
+                    dur_mode = line_data.duration_mode or (product.duration_mode if product.subscription_enabled else "TILL_VALIDITY")
+                    if (dur_mode or "").upper() == "LIFETIME":
+                        val_val = None
+                        val_unit = None
+                        bill_freq = "NONE"
+                    else:
+                        val_val = line_data.validity_value if line_data.validity_value is not None else (product.validity_value if product.subscription_enabled else 3)
+                        val_unit = line_data.validity_unit or (product.validity_unit if product.subscription_enabled else "MONTHS")
+                        bill_freq = line_data.billing_frequency or (product.billing_frequency if product.subscription_enabled else "MONTHLY")
+                    start_trig = line_data.subscription_start_trigger or "ORDER_ACTIVATION"
+
                 quote_line = QuoteLine(
                     quote_id=quote.id,
                     product_id=product.id,
@@ -305,41 +329,13 @@ class QuoteService:
                     discount_amount=discount_amount,
                     line_total=line_total,
                     line_type=line_data.line_type or LineType.ONE_TIME,
-                    subscription_enabled=(
-                        line_data.subscription_enabled
-                        if line_data.subscription_enabled is not None
-                        else bool(product.subscription_enabled)
-                    ),
-                    subscription_name=(
-                        line_data.subscription_name
-                        if line_data.subscription_name is not None
-                        else product.subscription_name
-                    ),
-                    duration_mode=(
-                        line_data.duration_mode
-                        if line_data.duration_mode is not None
-                        else product.duration_mode
-                    ),
-                    validity_value=(
-                        line_data.validity_value
-                        if line_data.validity_value is not None
-                        else product.validity_value
-                    ),
-                    validity_unit=(
-                        line_data.validity_unit
-                        if line_data.validity_unit is not None
-                        else product.validity_unit
-                    ),
-                    billing_frequency=(
-                        line_data.billing_frequency
-                        if line_data.billing_frequency is not None
-                        else product.billing_frequency
-                    ),
-                    subscription_start_trigger=(
-                        line_data.subscription_start_trigger
-                        if line_data.subscription_start_trigger is not None
-                        else (product.subscription_start_trigger or "ORDER_ACTIVATION")
-                    ),
+                    subscription_enabled=is_sub,
+                    subscription_name=sub_name,
+                    duration_mode=dur_mode,
+                    validity_value=val_val,
+                    validity_unit=val_unit,
+                    billing_frequency=bill_freq,
+                    subscription_start_trigger=start_trig,
                 )
                 quote.lines.append(quote_line)
 

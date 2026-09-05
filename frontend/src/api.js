@@ -109,6 +109,10 @@ export const api = {
     return request("/products/categories");
   },
 
+  async getSubscriptionPlans() {
+    return request("/subscription-plans");
+  },
+
   async createProduct(payload) {
     return request("/products", {
       method: "POST",

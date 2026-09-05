@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user, require_roles
 from app.models.user import User, Role
-from app.models.billing import Invoice, InvoiceStatus, Subscription, SubscriptionStatus, BillingType
+from app.models.billing import Invoice, InvoiceStatus, Subscription, SubscriptionStatus, BillingType, SubscriptionPlan
 from app.models.order import Order
 from app.models.customer import Customer
 from app.schemas.billing import (
@@ -18,12 +18,22 @@ from app.schemas.billing import (
     PaymentCreate,
     PaymentResponse,
     SubscriptionResponse,
+    SubscriptionPlanResponse,
     BillingRunResponse,
 )
 from app.services.billing_service import billing_service
 from app.services.customer_service import customer_service
 
 router = APIRouter(tags=["Billing & Invoices"])
+
+
+@router.get("/subscription-plans", response_model=List[SubscriptionPlanResponse])
+def list_subscription_plans(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Lists available subscription service plans."""
+    return db.query(SubscriptionPlan).order_by(SubscriptionPlan.name.asc()).all()
 
 
 class BillingRunRequest(BaseModel):
