@@ -312,9 +312,12 @@ export default function App() {
   function handleLogout() {
     api.logout();
     setCurrentUser(null);
+    setLoginEmail("");
     setLoginPassword("");
+    setSidebarCollapsed(false);
+    setMobileSidebarOpen(false);
     goToLogin();
-    notify("Logged out", "info");
+    notify("Logged out successfully", "info");
   }
 
   function notify(message, type = "info") {
@@ -612,6 +615,41 @@ export default function App() {
               Create Account
             </a>
           </div>
+
+          <div
+            style={{
+              marginTop: "1.25rem",
+              paddingTop: "1.1rem",
+              borderTop: "1px dashed var(--border-subtle)",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.72rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                color: "var(--text-muted)",
+                marginBottom: "0.65rem",
+              }}
+            >
+              Demo Mode — One-Click Persona Login
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", justifyContent: "center" }}>
+              {DEMO_PERSONAS.map((p) => (
+                <button
+                  key={p.email}
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: "0.75rem", padding: "0.22rem 0.55rem" }}
+                  onClick={() => loginAs(p.email)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       );
     }
@@ -815,72 +853,67 @@ export default function App() {
             </nav>
           )}
 
-          {/* 3. Demo Persona Switcher */}
-          <div className="header-personas">
-            {/* Desktop Pills (wide screens) */}
-            <div className="persona-pills" title="Quickly login using pre-seeded demo accounts">
-              <span className="persona-label">DEMO:</span>
-              {DEMO_PERSONAS.map((p) => {
-                const isActive = currentUser?.email === p.email;
-                return (
+          {/* 3. Demo Persona Switcher (ONLY when unauthenticated / DEMO MODE) */}
+          {!currentUser && (
+            <div className="header-personas">
+              {/* Desktop Pills (wide screens) */}
+              <div className="persona-pills" title="Quickly login using pre-seeded demo accounts">
+                <span className="persona-label">DEMO MODE:</span>
+                {DEMO_PERSONAS.map((p) => (
                   <button
                     key={p.email}
                     type="button"
-                    className={`persona-btn ${isActive ? "active" : ""}`}
+                    className="persona-btn"
                     onClick={() => loginAs(p.email)}
                   >
                     {p.label}
                   </button>
-                );
-              })}
-            </div>
-
-            {/* Compact Dropdown (medium/tablet/mobile screens) */}
-            <div className="persona-dropdown" title="Switch demo persona">
-              <span className="persona-label-compact">DEMO PERSONA:</span>
-              <select
-                className="persona-select"
-                value={currentUser?.email || ""}
-                onChange={(e) => loginAs(e.target.value)}
-                aria-label="Demo Persona Switcher"
-              >
-                {!DEMO_PERSONAS.some((p) => p.email === currentUser?.email) && (
-                  <option value="" disabled>
-                    Switch persona...
-                  </option>
-                )}
-                {DEMO_PERSONAS.map((p) => (
-                  <option key={p.email} value={p.email}>
-                    {p.label} ({p.role.replace("_", " ")})
-                  </option>
                 ))}
-              </select>
-            </div>
-          </div>
+              </div>
 
-          {/* 4. Authenticated User Badge */}
-          {currentUser && (
-            <div className="header-auth">
-              <span className="badge badge-neutral auth-badge" title={`Role: ${currentUser.role}`}>
-                <UserCheck size={12} style={{ flexShrink: 0 }} />
-                <span className="auth-role-full">AUTHENTICATED: {currentUser.role}</span>
-                <span className="auth-role-compact">{currentUser.role.replace("_", " ")}</span>
-              </span>
+              {/* Compact Dropdown (medium/tablet/mobile screens) */}
+              <div className="persona-dropdown" title="Select demo persona">
+                <span className="persona-label-compact">DEMO:</span>
+                <select
+                  className="persona-select"
+                  value=""
+                  onChange={(e) => loginAs(e.target.value)}
+                  aria-label="Demo Persona Switcher"
+                >
+                  <option value="" disabled>
+                    Select Demo Role...
+                  </option>
+                  {DEMO_PERSONAS.map((p) => (
+                    <option key={p.email} value={p.email}>
+                      {p.label} ({p.role.replace("_", " ")})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
 
-          {/* 5. Logout */}
+          {/* 4. Authenticated User Badge & Logout — NO DEMO PERSONA BUTTONS */}
           {currentUser && (
-            <div className="header-logout">
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm logout-btn"
-                onClick={handleLogout}
-                title="Logout"
-              >
-                <LogOut size={13} style={{ flexShrink: 0 }} />
-                <span className="logout-text">Logout</span>
-              </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginLeft: "auto" }}>
+              <div className="header-auth">
+                <span className="badge badge-neutral auth-badge" title={`Role: ${currentUser.role}`}>
+                  <UserCheck size={12} style={{ flexShrink: 0 }} />
+                  <span className="auth-role-full">AUTHENTICATED: {currentUser.role}</span>
+                  <span className="auth-role-compact">{currentUser.role.replace("_", " ")}</span>
+                </span>
+              </div>
+              <div className="header-logout">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm logout-btn"
+                  onClick={handleLogout}
+                  title="Logout"
+                >
+                  <LogOut size={13} style={{ flexShrink: 0 }} />
+                  <span className="logout-text">Logout</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
