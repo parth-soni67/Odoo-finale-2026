@@ -83,3 +83,20 @@ class QuoteRiskResponse(BaseModel):
     requires_finance_approval: bool = False
     violations: List[LineViolation] = []
     reasons: List[str] = []
+
+
+class QuoteRecommendationItem(BaseModel):
+    product_id: int
+    product_name: str
+    type: str  # UPSELL or CROSS_SELL
+    reason: str
+    suggested_quantity: int = 1
+    unit_price: float
+    estimated_margin_impact: float
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class QuoteRecommendationsResponse(BaseModel):
+    quote_id: int
+    recommendations: List[QuoteRecommendationItem] = []

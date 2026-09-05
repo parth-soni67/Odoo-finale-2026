@@ -12,6 +12,7 @@ from app.services.portal_service import portal_service, PortalService
 from app.services.negotiation_service import negotiation_service, NegotiationService
 from app.services.deal_health_service import deal_health_service, DealHealthService
 from app.services.report_service import report_service, ReportService
+from app.services.recommendation_service import recommendation_service, RecommendationService
 
 __all__ = [
     "auth_service",
@@ -42,4 +43,6 @@ __all__ = [
     "DealHealthService",
     "report_service",
     "ReportService",
+    "recommendation_service",
+    "RecommendationService",
 ]

@@ -30,6 +30,8 @@ from app.schemas.quote import (
     QuoteCreate,
     QuoteResponse,
     QuoteRiskResponse,
+    QuoteRecommendationItem,
+    QuoteRecommendationsResponse,
 )
 from app.schemas.approval import (
     ApprovalBase,
@@ -89,6 +91,8 @@ __all__ = [
     "QuoteCreate",
     "QuoteResponse",
     "QuoteRiskResponse",
+    "QuoteRecommendationItem",
+    "QuoteRecommendationsResponse",
     "ApprovalBase",
     "ApprovalCreate",
     "ApprovalAction",
