@@ -36,6 +36,13 @@ const DEMO_PERSONAS = [
 ];
 
 const ROLE_NAVIGATION = {
+  CUSTOMER: [
+    { id: "portal", label: "Customer Portal", icon: Building2 },
+    { id: "my-quotes", label: "My Quotes", icon: FileText },
+    { id: "orders", label: "Orders & Fulfillment", icon: Package },
+    { id: "billing", label: "Billing & Invoices", icon: Receipt },
+    { id: "company", label: "Company Account", icon: Users },
+  ],
   SALES_REP: [
     { id: "quotations", label: "Quotations", icon: FileText },
     { id: "products", label: "Products", icon: Package },
@@ -43,24 +50,20 @@ const ROLE_NAVIGATION = {
     { id: "negotiations", label: "Negotiations", icon: MessageSquare },
   ],
   SALES_MANAGER: [
-    { id: "deal-health", label: "Deal Health", icon: Activity },
     { id: "quotations", label: "Quotations", icon: FileText },
-    { id: "approvals", label: "Approvals", icon: CheckCircle2 },
-    { id: "negotiations", label: "Negotiations", icon: MessageSquare },
     { id: "products", label: "Products", icon: Package },
     { id: "customers", label: "Customers", icon: Users },
-    { id: "reports", label: "Reports", icon: BarChart3 },
+    { id: "negotiations", label: "Negotiations", icon: MessageSquare },
+    { id: "approvals", label: "Approvals", icon: CheckCircle2 },
+    { id: "deal-health", label: "Deal Health", icon: Activity },
   ],
   FINANCE: [
-    { id: "approvals", label: "Approvals", icon: CheckCircle2 },
     { id: "billing", label: "Billing & Invoices", icon: Receipt },
+    { id: "approvals", label: "Approvals", icon: CheckCircle2 },
     { id: "quotations", label: "Quotations", icon: FileText },
   ],
   OPERATIONS: [
     { id: "orders", label: "Orders & Fulfillment", icon: Truck },
-  ],
-  CUSTOMER: [
-    { id: "portal", label: "Customer Portal", icon: Building2 },
   ],
   ADMIN: [
     { id: "deal-health", label: "Deal Health", icon: Activity },
@@ -76,11 +79,19 @@ const ROLE_NAVIGATION = {
 };
 
 const ROLE_ALLOWED_TABS = {
+  CUSTOMER: ["portal", "my-quotes", "orders", "billing", "company", "account"],
   SALES_REP: ["quotations", "products", "customers", "negotiations"],
-  SALES_MANAGER: ["deal-health", "quotations", "approvals", "negotiations", "products", "customers", "reports"],
-  FINANCE: ["approvals", "billing", "quotations"],
+  SALES_MANAGER: [
+    "quotations",
+    "products",
+    "customers",
+    "negotiations",
+    "approvals",
+    "deal-health",
+    "reports",
+  ],
+  FINANCE: ["billing", "approvals", "quotations"],
   OPERATIONS: ["orders", "fulfillment"],
-  CUSTOMER: ["portal"],
   ADMIN: [
     "deal-health",
     "quotations",
@@ -92,15 +103,20 @@ const ROLE_ALLOWED_TABS = {
     "orders",
     "fulfillment",
     "billing",
+    "portal",
+    "my-quotes",
+    "company",
+    "account",
+    "admin",
   ],
 };
 
 const ROLE_DEFAULT_TAB = {
-  SALES_REP: "quotations",
-  SALES_MANAGER: "deal-health",
-  FINANCE: "approvals",
-  OPERATIONS: "orders",
   CUSTOMER: "portal",
+  SALES_REP: "quotations",
+  SALES_MANAGER: "quotations",
+  FINANCE: "billing",
+  OPERATIONS: "orders",
   ADMIN: "deal-health",
 };
 
@@ -216,13 +232,22 @@ export default function App() {
       const res = await api.login(email, "Demo1234!");
       setCurrentUser(res.user);
       const targetRoute = requestedRoute || getRouteFromLocation();
-      if (targetRoute && !isRegisterRoute(targetRoute) && !isLoginRoute(targetRoute)) {
+      const allowed = ROLE_ALLOWED_TABS[res.user.role] || [];
+      if (targetRoute && allowed.includes(targetRoute) && !isRegisterRoute(targetRoute) && !isLoginRoute(targetRoute)) {
         setActiveTab(targetRoute);
-        window.location.hash = `#/${targetRoute}`;
+        if (window.location.hash) {
+          window.location.hash = `#/${targetRoute}`;
+        } else {
+          window.history.pushState({}, "", `/${targetRoute}`);
+        }
       } else {
         const def = ROLE_DEFAULT_TAB[res.user.role] || "portal";
         setActiveTab(def);
-        window.location.hash = `#/${def}`;
+        if (window.location.hash) {
+          window.location.hash = `#/${def}`;
+        } else {
+          window.history.pushState({}, "", `/${def}`);
+        }
       }
       notify(`Logged in as ${res.user.full_name} (${res.user.role})`, "success");
     } catch (err) {
@@ -298,8 +323,14 @@ export default function App() {
       .login(loginEmail.trim(), loginPassword)
       .then((res) => {
         setCurrentUser(res.user);
-        const def = ROLE_DEFAULT_TAB[res.user.role] || "portal";
-        navigateTo(def);
+        const allowed = ROLE_ALLOWED_TABS[res.user.role] || [];
+        const currentRoute = getRouteFromLocation();
+        if (currentRoute && allowed.includes(currentRoute) && !isRegisterRoute(currentRoute) && !isLoginRoute(currentRoute)) {
+          navigateTo(currentRoute);
+        } else {
+          const def = ROLE_DEFAULT_TAB[res.user.role] || "portal";
+          navigateTo(def);
+        }
         notify(`Signed in as ${res.user.full_name}`, "success");
       })
       .catch((err) => {
@@ -396,7 +427,7 @@ export default function App() {
                 goToLogin();
               }
             }}
-            style={{ cursor: "pointer" }}
+            style={{ cursor: "pointer", flexShrink: 0 }}
           >
             <Activity size={24} color="var(--primary)" />
             <span>
@@ -407,10 +438,15 @@ export default function App() {
 
           {/* Dynamic Role-Based Navigation */}
           {currentUser && !isShowingRegister && !isShowingLogin && (
-            <nav className="nav-links">
+            <nav className="nav-links" style={{ flexWrap: "wrap", flexShrink: 1 }}>
               {roleNavItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = activeTab === item.id;
+                const isCustomerTab = currentUser.role === "CUSTOMER";
+                const isActive = activeTab === item.id || (isCustomerTab && (
+                  (item.id === "my-quotes" && activeTab === "quotes") ||
+                  (item.id === "company" && activeTab === "account") ||
+                  (item.id === "portal" && (activeTab === "portal" || !activeTab))
+                ));
                 return (
                   <button
                     key={item.id}
@@ -425,7 +461,7 @@ export default function App() {
           )}
 
           {/* Demo Persona Switcher & User Status */}
-          <div className="user-controls">
+          <div className="user-controls" style={{ flexWrap: "wrap", flexShrink: 0 }}>
             <div className="persona-switcher" title="Quickly login using pre-seeded demo accounts">
               <span
                 style={{
@@ -452,14 +488,15 @@ export default function App() {
             </div>
 
             {currentUser && (
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <span className="badge badge-neutral" style={{ fontSize: "0.75rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexShrink: 0 }}>
+                <span className="badge badge-neutral" style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}>
                   <UserCheck size={12} /> AUTHENTICATED: {currentUser.role}
                 </span>
                 <button
                   className="btn btn-secondary btn-sm"
                   onClick={handleLogout}
                   title="Logout"
+                  style={{ whiteSpace: "nowrap" }}
                 >
                   <LogOut size={13} /> Logout
                 </button>
@@ -683,42 +720,71 @@ export default function App() {
         ) : (
           /* Authorized Component Rendering */
           <div>
-            {activeTab === "portal" && (
-              <CustomerPortal user={currentUser} onNotify={notify} />
-            )}
-            {activeTab === "quotations" && (
-              <QuotationWorkflow
+            {currentUser.role === "CUSTOMER" ? (
+              <CustomerPortal
                 user={currentUser}
                 onNotify={notify}
-                onInspectDeal={() => navigateTo("deal-health")}
+                activeSubTab={
+                  activeTab === "my-quotes" || activeTab === "quotes"
+                    ? "quotes"
+                    : activeTab === "orders"
+                    ? "orders"
+                    : activeTab === "billing"
+                    ? "billing"
+                    : activeTab === "company" || activeTab === "account"
+                    ? "profile"
+                    : "quotes"
+                }
+                onTabChange={(subTab) => {
+                  const subTabToRoute = {
+                    quotes: "my-quotes",
+                    orders: "orders",
+                    billing: "billing",
+                    profile: "company",
+                  };
+                  navigateTo(subTabToRoute[subTab] || "portal");
+                }}
               />
-            )}
-            {activeTab === "approvals" && (
-              <ApprovalQueue user={currentUser} onNotify={notify} />
-            )}
-            {activeTab === "deal-health" && (
-              <DealHealthDashboard
-                onInspectNegotiation={() => navigateTo("negotiations")}
-                onNotify={notify}
-              />
-            )}
-            {activeTab === "negotiations" && (
-              <NegotiationsReview onNotify={notify} />
-            )}
-            {activeTab === "products" && (
-              <ProductManagement user={currentUser} onNotify={notify} />
-            )}
-            {activeTab === "customers" && (
-              <CustomerManagement user={currentUser} onNotify={notify} />
-            )}
-            {activeTab === "reports" && (
-              <SalesReports onNotify={notify} />
-            )}
-            {(activeTab === "orders" || activeTab === "fulfillment") && (
-              <OperationsFulfillment onNotify={notify} />
-            )}
-            {activeTab === "billing" && (
-              <FinanceBilling onNotify={notify} />
+            ) : (
+              <>
+                {activeTab === "portal" && (
+                  <CustomerPortal user={currentUser} onNotify={notify} />
+                )}
+                {activeTab === "quotations" && (
+                  <QuotationWorkflow
+                    user={currentUser}
+                    onNotify={notify}
+                    onInspectDeal={() => navigateTo("deal-health")}
+                  />
+                )}
+                {activeTab === "approvals" && (
+                  <ApprovalQueue user={currentUser} onNotify={notify} />
+                )}
+                {activeTab === "deal-health" && (
+                  <DealHealthDashboard
+                    onInspectNegotiation={() => navigateTo("negotiations")}
+                    onNotify={notify}
+                  />
+                )}
+                {activeTab === "negotiations" && (
+                  <NegotiationsReview onNotify={notify} />
+                )}
+                {activeTab === "products" && (
+                  <ProductManagement user={currentUser} onNotify={notify} />
+                )}
+                {activeTab === "customers" && (
+                  <CustomerManagement user={currentUser} onNotify={notify} />
+                )}
+                {activeTab === "reports" && (
+                  <SalesReports onNotify={notify} />
+                )}
+                {(activeTab === "orders" || activeTab === "fulfillment") && (
+                  <OperationsFulfillment onNotify={notify} />
+                )}
+                {activeTab === "billing" && (
+                  <FinanceBilling onNotify={notify} />
+                )}
+              </>
             )}
           </div>
         )}

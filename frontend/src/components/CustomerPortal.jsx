@@ -96,11 +96,11 @@ function getItemStatus(line, orderStatus) {
   return { label: "Processing", badge: "badge-info" };
 }
 
-export function CustomerPortal({ user, onNotify }) {
+export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabChange = null }) {
   const [profile, setProfile] = useState(null);
   const [quotes, setQuotes] = useState([]);
   const [selectedQuote, setSelectedQuote] = useState(null);
-  const [activeTab, setActiveTab] = useState("quotes"); // quotes, orders, billing, profile
+  const [activeTab, setActiveTab] = useState(activeSubTab || "quotes"); // quotes, orders, billing, profile
   const [loading, setLoading] = useState(true);
 
   // Orders & Fulfillment State
@@ -114,6 +114,22 @@ export function CustomerPortal({ user, onNotify }) {
   const [requestedChange, setRequestedChange] = useState("discount_percent");
   const [proposedValue, setProposedValue] = useState("");
   const [negLoading, setNegLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeSubTab && activeSubTab !== activeTab) {
+      setActiveTab(activeSubTab);
+      if (activeSubTab === "orders" && orders.length === 0 && !ordersLoading) {
+        loadOrders();
+      }
+    }
+  }, [activeSubTab]);
+
+  function handleTabSelect(tab) {
+    setActiveTab(tab);
+    if (onTabChange) {
+      onTabChange(tab);
+    }
+  }
 
   useEffect(() => {
     loadPortalData();
@@ -257,17 +273,17 @@ export function CustomerPortal({ user, onNotify }) {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", borderBottom: "1px solid var(--border-subtle)", paddingBottom: "0.5rem" }}>
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", borderBottom: "1px solid var(--border-subtle)", paddingBottom: "0.5rem", flexWrap: "wrap" }}>
         <button
           className={`nav-item ${activeTab === "quotes" ? "active" : ""}`}
-          onClick={() => setActiveTab("quotes")}
+          onClick={() => handleTabSelect("quotes")}
         >
           <FileText size={16} /> My Quotes ({quotes.length})
         </button>
         <button
           className={`nav-item ${activeTab === "orders" ? "active" : ""}`}
           onClick={() => {
-            setActiveTab("orders");
+            handleTabSelect("orders");
             if (orders.length === 0 && !ordersLoading) {
               loadOrders();
             }
@@ -277,13 +293,13 @@ export function CustomerPortal({ user, onNotify }) {
         </button>
         <button
           className={`nav-item ${activeTab === "billing" ? "active" : ""}`}
-          onClick={() => setActiveTab("billing")}
+          onClick={() => handleTabSelect("billing")}
         >
           <Receipt size={16} /> Billing & Invoices
         </button>
         <button
           className={`nav-item ${activeTab === "profile" ? "active" : ""}`}
-          onClick={() => setActiveTab("profile")}
+          onClick={() => handleTabSelect("profile")}
         >
           <Building2 size={16} /> Company Account
         </button>

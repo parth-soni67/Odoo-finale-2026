@@ -230,8 +230,59 @@ def test_signup_then_login_flow(client: TestClient):
 
 
 def test_direct_register_and_signup_routes_serve_spa(client: TestClient):
-    """Verifies that direct browser navigation to /register, /signup, and /login serves the SPA (no 404 Not Found)."""
-    for route in ["/register", "/signup", "/login"]:
+    """Verifies that direct browser navigation to SPA routes serves the SPA without 404."""
+    routes = [
+        "/register",
+        "/signup",
+        "/login",
+        "/portal",
+        "/my-quotes",
+        "/orders",
+        "/billing",
+        "/company",
+        "/quotations",
+        "/products",
+        "/customers",
+        "/approvals",
+        "/deal-health",
+        "/admin",
+        "/operations",
+        "/finance",
+        "/negotiations",
+    ]
+    for route in routes:
         resp = client.get(route)
         assert resp.status_code == 200
         assert "text/html" in resp.headers.get("content-type", "")
+
+
+def test_customer_denied_internal_negotiations_endpoint(client: TestClient):
+    """Verifies CUSTOMER role is blocked with 403 from internal /api/negotiations endpoint."""
+    login_resp = client.post(
+        "/api/auth/login",
+        json={"email": "customer@acmecorp.com", "password": "Demo1234!"}
+    )
+    assert login_resp.status_code == 200
+    token = login_resp.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Customer tries to access internal negotiations review
+    resp = client.get("/api/negotiations", headers=headers)
+    assert resp.status_code == 403
+    assert resp.json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_sales_rep_allowed_internal_negotiations_endpoint(client: TestClient):
+    """Verifies SALES_REP role can access internal /api/negotiations endpoint."""
+    login_resp = client.post(
+        "/api/auth/login",
+        json={"email": "salesrep@dealflow360.internal", "password": "Demo1234!"}
+    )
+    assert login_resp.status_code == 200
+    token = login_resp.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.get("/api/negotiations", headers=headers)
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
