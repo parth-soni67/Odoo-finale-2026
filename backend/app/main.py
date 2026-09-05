@@ -10,6 +10,12 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.quotes import router as quotes_router
 from app.api.routes.catalog import router as catalog_router
 from app.api.routes.orders import router as orders_router
+from app.api.routes.products import router as products_router
+from app.api.routes.customers import router as customers_router
+from app.api.routes.portal import router as portal_router
+from app.api.routes.negotiations import router as negotiations_router
+from app.api.routes.deal_health import router as deal_health_router
+from app.api.routes.reports import router as reports_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -78,9 +84,15 @@ async def generic_exception_handler(request: Request, exc: Exception):
 # Routers
 app.include_router(health_router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
+app.include_router(products_router, prefix=settings.API_V1_PREFIX)
+app.include_router(customers_router, prefix=settings.API_V1_PREFIX)
 app.include_router(quotes_router, prefix=settings.API_V1_PREFIX)
-app.include_router(catalog_router, prefix=settings.API_V1_PREFIX)
 app.include_router(orders_router, prefix=settings.API_V1_PREFIX)
+app.include_router(catalog_router, prefix=settings.API_V1_PREFIX)
+app.include_router(portal_router, prefix=settings.API_V1_PREFIX)
+app.include_router(negotiations_router, prefix=settings.API_V1_PREFIX)
+app.include_router(deal_health_router, prefix=settings.API_V1_PREFIX)
+app.include_router(reports_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/demo")
