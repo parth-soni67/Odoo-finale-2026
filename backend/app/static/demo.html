@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DealFlow360 — Quotation & Discount Governance</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(18, 26, 44, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.08) 0px, transparent 50%);
+      padding: 24px;
+    }
+
+    .container { max-width: 1240px; margin: 0 auto; }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 28px;
+    }
+
+    .logo-area { display: flex; align-items: center; gap: 14px; }
+    .logo-badge {
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      color: white;
+      font-weight: 800;
+      font-size: 18px;
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+    }
+    .brand-title { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    .brand-sub { font-size: 13px; color: var(--text-muted); }
+
+    .role-switcher {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+    }
+    .role-label { font-size: 12px; color: var(--text-muted); margin-right: 4px; font-weight: 600; }
+    .role-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .role-btn.active {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
+    }
+
+    .grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px; }
+    @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 24px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+      margin-bottom: 24px;
+    }
+
+    .card-title {
+      font-size: 17px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+    select, input, textarea {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+      transition: border 0.2s;
+    }
+    select:focus, input:focus, textarea:focus { border-color: var(--primary); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-success { background: var(--accent-emerald); color: white; }
+    .btn-danger { background: var(--accent-rose); color: white; }
+    .btn-secondary { background: rgba(255,255,255,0.08); color: var(--text); }
+    .btn-secondary:hover { background: rgba(255,255,255,0.12); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+    .demo-callout {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(6, 182, 212, 0.1));
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .demo-callout p { font-size: 13px; color: #cbd5e1; }
+    .demo-callout strong { color: white; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th { text-align: left; font-size: 12px; color: var(--text-muted); font-weight: 600; padding: 10px 8px; border-bottom: 1px solid var(--card-border); }
+    td { padding: 12px 8px; font-size: 13px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); vertical-align: middle; }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-approved { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-pending { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-rejected { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.3); }
+    .badge-draft { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3); }
+
+    .risk-meter {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      margin-bottom: 16px;
+    }
+    .risk-score-circle {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      flex-shrink: 0;
+    }
+    .risk-high { background: rgba(244, 63, 94, 0.2); color: #f43f5e; border: 2px solid #f43f5e; }
+    .risk-med { background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 2px solid #f59e0b; }
+    .risk-low { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 2px solid #10b981; }
+
+    .violation-card {
+      background: rgba(244, 63, 94, 0.08);
+      border: 1px solid rgba(244, 63, 94, 0.25);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+    .violation-header { font-weight: 700; color: #fb7185; margin-bottom: 4px; }
+
+    .totals-summary {
+      background: rgba(15, 23, 42, 0.7);
+      border-radius: 10px;
+      padding: 16px;
+      margin-top: 16px;
+    }
+    .total-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; color: var(--text-muted); }
+    .total-row.final { border-top: 1px solid var(--card-border); padding-top: 10px; margin-top: 10px; color: white; font-size: 16px; font-weight: 700; }
+
+    .approval-item {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo-area">
+        <div class="logo-badge">360</div>
+        <div>
+          <h1 class="brand-title">DealFlow360</h1>
+          <p class="brand-sub">Quotation Builder & Automated Discount Governance (Person 2)</p>
+        </div>
+      </div>
+      <div class="role-switcher">
+        <span class="role-label">Active Persona:</span>
+        <button class="role-btn active" id="btn-rep" onclick="switchUser('salesrep@dealflow360.internal', this)">Sam (Sales Rep)</button>
+        <button class="role-btn" id="btn-mgr" onclick="switchUser('salesmgr@dealflow360.internal', this)">Sarah (Sales Mgr)</button>
+        <button class="role-btn" id="btn-fin" onclick="switchUser('finance@dealflow360.internal', this)">Fiona (Finance)</button>
+      </div>
+    </header>
+
+    <!-- Judge Scenario Quick Trigger -->
+    <div class="demo-callout">
+      <div>
+        <strong>Judge Demonstration Scenario</strong>
+        <p>Pre-loads Acme Corp (10% ceiling), Edge IoT Gateway (8% discount), and Deployment Package (18% discount &gt; 10% policy limit).</p>
+      </div>
+      <button class="btn btn-primary" onclick="loadJudgeDemoScenario()">⚡ Load Demo Scenario</button>
+    </div>
+
+    <div class="grid">
+      <!-- Left Column: Quote Builder -->
+      <div>
+        <div class="card">
+          <div class="card-title">
+            <span>📝 Quotation Builder</span>
+            <button class="btn btn-secondary btn-sm" onclick="addLineItem()">+ Add Product Line</button>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Select Customer</label>
+            <select id="customer-select" onchange="onCustomerChange()"></select>
+            <div id="customer-ceiling-info" style="font-size: 12px; color: var(--accent-cyan); margin-top: 4px;"></div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th style="width: 80px;">Qty</th>
+                <th style="width: 100px;">Price</th>
+                <th style="width: 90px;">Disc %</th>
+                <th style="width: 110px;">Total</th>
+                <th style="width: 40px;"></th>
+              </tr>
+            </thead>
+            <tbody id="lines-tbody"></tbody>
+          </table>
+
+          <div class="totals-summary">
+            <div class="total-row"><span>Gross Subtotal:</span><span id="txt-subtotal">$0.00</span></div>
+            <div class="total-row"><span>Total Discount:</span><span id="txt-discount" style="color: #f59e0b;">$0.00</span></div>
+            <div class="total-row final"><span>Quote Net Total:</span><span id="txt-net">$0.00</span></div>
+          </div>
+
+          <div style="margin-top: 18px; display: flex; gap: 10px;">
+            <button class="btn btn-primary" style="flex: 1;" onclick="submitQuote()">🚀 Submit Quote & Evaluate Governance</button>
+          </div>
+        </div>
+
+        <!-- Quote History -->
+        <div class="card">
+          <div class="card-title">
+            <span>📚 Recent Quotations</span>
+            <button class="btn btn-secondary btn-sm" onclick="loadQuotes()">Refresh</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Quote #</th>
+                <th>Customer</th>
+                <th>Amount</th>
+                <th>Risk Score</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="quotes-history-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Right Column: Discount Governance & Approvals -->
+      <div>
+        <!-- Real-time Risk Assessment -->
+        <div class="card">
+          <div class="card-title">
+            <span>🛡️ Discount Governance Engine</span>
+            <span id="governance-status-badge" class="badge badge-draft">Idle</span>
+          </div>
+
+          <div class="risk-meter">
+            <div id="risk-score-badge" class="risk-score-circle risk-low">0</div>
+            <div>
+              <div id="risk-level-title" style="font-weight: 700; font-size: 15px;">Low Risk</div>
+              <div id="risk-level-desc" style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">All line items comply with discount rules.</div>
+            </div>
+          </div>
+
+          <div id="violations-container"></div>
+        </div>
+
+        <!-- Approval Action Panel -->
+        <div class="card">
+          <div class="card-title">
+            <span>⚖️ Pending Approval Decisions</span>
+            <span id="approval-role-badge" class="badge badge-pending">Manager Queue</span>
+          </div>
+          <div id="approvals-container">
+            <p style="font-size: 13px; color: var(--text-muted);">No pending approvals requiring your action.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let authToken = '';
+    let currentRole = 'SALES_REP';
+    let productsList = [];
+    let customersList = [];
+
+    async function login(email) {
+      try {
+        const resp = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, password: 'Demo1234!' })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          authToken = data.access_token;
+          currentRole = data.user.role;
+          loadCatalog();
+          loadQuotes();
+          loadPendingApprovals();
+        }
+      } catch (err) {
+        console.error('Login error', err);
+      }
+    }
+
+    function switchUser(email, btn) {
+      document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      login(email);
+    }
+
+    async function loadCatalog() {
+      const pResp = await fetch('/api/products', { headers: { 'Authorization': `Bearer ${authToken}` } });
+      productsList = await pResp.json();
+
+      const cResp = await fetch('/api/customers', { headers: { 'Authorization': `Bearer ${authToken}` } });
+      customersList = await cResp.json();
+
+      const select = document.getElementById('customer-select');
+      select.innerHTML = customersList.map(c => `<option value="${c.id}">${c.company_name} (${c.tier} - Ceiling: ${c.discount_ceiling}%)</option>`).join('');
+      onCustomerChange();
+      if (document.getElementById('lines-tbody').children.length === 0) {
+        addLineItem();
+      }
+    }
+
+    function onCustomerChange() {
+      const select = document.getElementById('customer-select');
+      const cust = customersList.find(c => c.id == select.value);
+      if (cust) {
+        document.getElementById('customer-ceiling-info').innerText = 
+          `Customer Tier: ${cust.tier} | Default Discount Ceiling: ${cust.discount_ceiling}%`;
+      }
+    }
+
+    function addLineItem(prodId = null, qty = 1, disc = 0) {
+      const tbody = document.getElementById('lines-tbody');
+      const rowId = Date.now() + Math.random();
+      const tr = document.createElement('tr');
+      tr.id = `line-${rowId}`;
+      
+      const prodOptions = productsList.map(p => 
+        `<option value="${p.id}" ${prodId == p.id ? 'selected' : ''}>${p.name} ($${p.unit_price} / Max: ${p.allowed_discount_percent}%)</option>`
+      ).join('');
+
+      tr.innerHTML = `
+        <td><select class="line-prod" onchange="recalcLine('${rowId}')">${prodOptions}</select></td>
+        <td><input type="number" class="line-qty" value="${qty}" min="1" oninput="recalcLine('${rowId}')" style="width: 70px;"></td>
+        <td class="line-price" style="font-family: 'JetBrains Mono';">$0.00</td>
+        <td><input type="number" class="line-disc" value="${disc}" min="0" max="100" oninput="recalcLine('${rowId}')" style="width: 75px;"></td>
+        <td class="line-total" style="font-family: 'JetBrains Mono'; font-weight: 600;">$0.00</td>
+        <td><button onclick="document.getElementById('line-${rowId}').remove(); recalcTotals();" style="background:none; border:none; color:#f43f5e; cursor:pointer; font-weight:bold;">&times;</button></td>
+      `;
+      tbody.appendChild(tr);
+      recalcLine(rowId);
+    }
+
+    function recalcLine(rowId) {
+      const tr = document.getElementById(`line-${rowId}`);
+      if (!tr) return;
+      const prodId = tr.querySelector('.line-prod').value;
+      const qty = parseFloat(tr.querySelector('.line-qty').value) || 1;
+      const disc = parseFloat(tr.querySelector('.line-disc').value) || 0;
+      const prod = productsList.find(p => p.id == prodId);
+      
+      const price = prod ? prod.unit_price : 0;
+      const gross = qty * price;
+      const net = gross * (1 - (disc / 100));
+
+      tr.querySelector('.line-price').innerText = `$${price.toFixed(2)}`;
+      tr.querySelector('.line-total').innerText = `$${net.toFixed(2)}`;
+      recalcTotals();
+    }
+
+    function recalcTotals() {
+      let subtotal = 0;
+      let totalNet = 0;
+      document.querySelectorAll('#lines-tbody tr').forEach(tr => {
+        const prodId = tr.querySelector('.line-prod').value;
+        const qty = parseFloat(tr.querySelector('.line-qty').value) || 0;
+        const disc = parseFloat(tr.querySelector('.line-disc').value) || 0;
+        const prod = productsList.find(p => p.id == prodId);
+        if (prod) {
+          const gross = qty * prod.unit_price;
+          const net = gross * (1 - (disc / 100));
+          subtotal += gross;
+          totalNet += net;
+        }
+      });
+      const discount = subtotal - totalNet;
+      document.getElementById('txt-subtotal').innerText = `$${subtotal.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+      document.getElementById('txt-discount').innerText = `$${discount.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+      document.getElementById('txt-net').innerText = `$${totalNet.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+    }
+
+    function loadJudgeDemoScenario() {
+      const acme = customersList.find(c => c.company_name.includes('Acme'));
+      if (acme) {
+        document.getElementById('customer-select').value = acme.id;
+        onCustomerChange();
+      }
+      const tbody = document.getElementById('lines-tbody');
+      tbody.innerHTML = '';
+      
+      // Line 1: Edge IoT Gateway Server (product_id: 1), qty 10, discount 8%
+      addLineItem(1, 10, 8);
+      // Line 2: On-site Deployment Package (product_id: 3), qty 1, discount 18% (violates 10% ceiling!)
+      addLineItem(3, 1, 18);
+    }
+
+    async function submitQuote() {
+      const custId = parseInt(document.getElementById('customer-select').value);
+      const lines = [];
+      document.querySelectorAll('#lines-tbody tr').forEach(tr => {
+        lines.push({
+          product_id: parseInt(tr.querySelector('.line-prod').value),
+          quantity: parseInt(tr.querySelector('.line-qty').value),
+          discount_percent: parseFloat(tr.querySelector('.line-disc').value)
+        });
+      });
+
+      const resp = await fetch('/api/quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ customer_id: custId, lines: lines })
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        displayRiskResult(data);
+        loadQuotes();
+        loadPendingApprovals();
+      } else {
+        alert(data.error ? data.error.message : 'Error creating quote');
+      }
+    }
+
+    function displayRiskResult(quote) {
+      const badge = document.getElementById('governance-status-badge');
+      const scoreCircle = document.getElementById('risk-score-badge');
+      const levelTitle = document.getElementById('risk-level-title');
+      const levelDesc = document.getElementById('risk-level-desc');
+      const container = document.getElementById('violations-container');
+
+      badge.className = `badge badge-${quote.status.toLowerCase()}`;
+      badge.innerText = quote.status;
+
+      scoreCircle.innerText = Math.round(quote.risk_score);
+      if (quote.risk_score >= 75) {
+        scoreCircle.className = 'risk-score-circle risk-high';
+        levelTitle.innerText = 'Critical / High Risk (Finance & Mgr Review)';
+      } else if (quote.risk_score >= 35) {
+        scoreCircle.className = 'risk-score-circle risk-med';
+        levelTitle.innerText = 'Moderate Risk (Manager Review Required)';
+      } else {
+        scoreCircle.className = 'risk-score-circle risk-low';
+        levelTitle.innerText = 'Compliant / Low Risk';
+      }
+
+      fetch(`/api/quotes/${quote.id}/risk`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.json())
+        .then(riskData => {
+          levelDesc.innerText = riskData.requires_approval 
+            ? 'Discount rules breached at line item level. Routing for review.' 
+            : 'Quote complies with all pricing and discount thresholds.';
+
+          if (riskData.violations && riskData.violations.length > 0) {
+            container.innerHTML = riskData.violations.map(v => `
+              <div class="violation-card">
+                <div class="violation-header">⚠️ Policy Violation: ${v.product}</div>
+                <div>Requested Discount: <strong>${v.requested_discount}%</strong> | Allowed Limit: <strong>${v.allowed_discount}%</strong></div>
+                <div style="color: #fb7185; margin-top: 2px;">Excess Discount: +${v.excess}%</div>
+              </div>
+            `).join('');
+          } else {
+            container.innerHTML = `<div style="font-size:12px; color:var(--accent-emerald);">✓ All line item discounts are within allowable thresholds.</div>`;
+          }
+        });
+    }
+
+    async function loadQuotes() {
+      const resp = await fetch('/api/quotes', { headers: { 'Authorization': `Bearer ${authToken}` } });
+      const quotes = await resp.json();
+      const tbody = document.getElementById('quotes-history-tbody');
+      tbody.innerHTML = quotes.slice(0, 8).map(q => `
+        <tr>
+          <td><strong>${q.quote_number}</strong></td>
+          <td>${q.customer ? q.customer.company_name : 'Customer ' + q.customer_id}</td>
+          <td style="font-family: 'JetBrains Mono';">$${q.total_amount.toFixed(2)}</td>
+          <td><span style="font-weight:700; color:${q.risk_score >= 35 ? '#f59e0b' : '#10b981'}">${Math.round(q.risk_score)}</span></td>
+          <td><span class="badge badge-${q.status.toLowerCase()}">${q.status}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadPendingApprovals() {
+      const container = document.getElementById('approvals-container');
+      if (currentRole !== 'SALES_MANAGER' && currentRole !== 'FINANCE' && currentRole !== 'ADMIN') {
+        container.innerHTML = `<p style="font-size: 13px; color: var(--text-muted);">Switch to <strong>Sarah (Sales Mgr)</strong> or <strong>Fiona (Finance)</strong> to review and approve quotations.</p>`;
+        return;
+      }
+
+      const resp = await fetch('/api/approvals/pending', { headers: { 'Authorization': `Bearer ${authToken}` } });
+      const approvals = await resp.json();
+      if (!approvals || approvals.length === 0) {
+        container.innerHTML = `<p style="font-size: 13px; color: var(--accent-emerald);">✓ No pending approvals awaiting your review.</p>`;
+        return;
+      }
+
+      container.innerHTML = approvals.map(app => `
+        <div class="approval-item">
+          <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
+            <strong style="color: #38bdf8;">Quote ID: ${app.quote_id} (${app.approval_type})</strong>
+            <span class="badge badge-pending">PENDING</span>
+          </div>
+          <p style="font-size: 12px; color: #cbd5e1; margin-bottom: 10px;">${app.reason || 'Discount policy breach review'}</p>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-success btn-sm" onclick="decideApproval(${app.quote_id}, 'APPROVE')">✓ Approve Quote</button>
+            <button class="btn btn-danger btn-sm" onclick="decideApproval(${app.quote_id}, 'REJECT')">✕ Reject</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function decideApproval(quoteId, action) {
+      const endpoint = action === 'APPROVE' ? `/api/quotes/${quoteId}/approve` : `/api/quotes/${quoteId}/reject`;
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ comments: `Resolved by ${currentRole} via DealFlow360 platform` })
+      });
+      if (resp.ok) {
+        loadPendingApprovals();
+        loadQuotes();
+      } else {
+        const err = await resp.json();
+        alert(err.error ? err.error.message : 'Action failed');
+      }
+    }
+
+    // Default auto-login as Sales Rep on boot
+    login('salesrep@dealflow360.internal');
+  </script>
+</body>
+</html>
