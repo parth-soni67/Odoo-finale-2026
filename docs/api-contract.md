@@ -106,16 +106,22 @@ Authorization: Bearer <JWT_ACCESS_TOKEN>
 The following endpoints represent agreed data contracts for Person 2, Person 3, and Person 4.
 > **Status Note**: Marked as `[PLANNED / NOT IMPLEMENTED]` in the foundation stage.
 
-### 3.1 Catalog & Customers [PLANNED]
-- **`GET /api/products`** `[PLANNED / NOT IMPLEMENTED]`
+### 3.1 Catalog & Customers [IMPLEMENTED — PERSON 2]
+- **`GET /api/products`**
   - Access: Authenticated
-  - Response 200: Array of `ProductResponse` (`id`, `name`, `sku`, `category_id`, `unit_price`, `allowed_discount_percent`, `is_active`)
-- **`GET /api/customers`** `[PLANNED / NOT IMPLEMENTED]`
+  - Description: Lists active products with category metadata and allowed discount thresholds.
+  - Response 200: Array of `ProductResponse` (`id`, `name`, `sku`, `category_id`, `unit_price`, `cost_price`, `allowed_discount_percent`, `is_active`)
+- **`GET /api/customers`**
   - Access: Authenticated
+  - Description: Lists customer accounts with tier information and default discount ceilings.
   - Response 200: Array of `CustomerResponse` (`id`, `company_name`, `contact_name`, `email`, `tier`, `discount_ceiling`)
+- **`GET /api/approvals/pending`**
+  - Access: `SALES_MANAGER`, `FINANCE`, `ADMIN`
+  - Description: Lists pending quote approvals awaiting action by the current reviewer.
+  - Response 200: Array of `ApprovalResponse`
 
-### 3.2 Quotations & Risk Assessment [PLANNED]
-- **`POST /api/quotes`** `[PLANNED / NOT IMPLEMENTED]`
+### 3.2 Quotations & Risk Assessment [IMPLEMENTED — PERSON 2]
+- **`POST /api/quotes`**
   - Access: `SALES_REP`, `SALES_MANAGER`, `ADMIN`
   - Request:
     ```json
@@ -126,38 +132,45 @@ The following endpoints represent agreed data contracts for Person 2, Person 3, 
           "product_id": 1,
           "quantity": 10,
           "unit_price": 1200.0,
-          "discount_percent": 15.0,
+          "discount_percent": 8.0,
           "line_type": "ONE_TIME"
         },
         {
-          "product_id": 4,
+          "product_id": 3,
           "quantity": 1,
-          "unit_price": 800.0,
-          "discount_percent": 10.0,
-          "line_type": "RECURRING"
+          "unit_price": 2500.0,
+          "discount_percent": 18.0,
+          "line_type": "ONE_TIME"
         }
       ]
     }
     ```
-  - Response 201: `QuoteResponse` with calculated `subtotal`, `total_discount`, `total_amount`, `risk_score`, and `requires_approval`.
-- **`GET /api/quotes/{quote_id}`** `[PLANNED / NOT IMPLEMENTED]`
+  - Response 201: `QuoteResponse` with calculated `subtotal`, `total_discount`, `total_amount`, `risk_score`, `requires_approval`, and `status`.
+- **`GET /api/quotes`**
+  - Access: Authenticated (scoping: Sales Rep sees own quotes; Managers/Finance/Admin see all quotes)
+  - Response 200: Array of `QuoteResponse`
+- **`GET /api/quotes/{quote_id}`**
   - Access: Authenticated
-  - Response 200: Complete `QuoteResponse` including lines, customer info, and approval status.
-- **`POST /api/quotes/{quote_id}/risk`** `[PLANNED / NOT IMPLEMENTED]`
+  - Response 200: Complete `QuoteResponse` including lines, customer info, and approval records.
+- **`PATCH /api/quotes/{quote_id}`**
+  - Access: `SALES_REP`, `SALES_MANAGER`, `ADMIN`
+  - Request: `QuoteUpdate` (`lines`, `customer_id`, `status`)
+  - Response 200: Updated `QuoteResponse` with recalculations and re-evaluated risk.
+- **`POST /api/quotes/{quote_id}/risk`**
   - Access: Authenticated
-  - Response 200: `QuoteRiskResponse` (`risk_score`, `requires_approval`, `reasons: ["Discount exceeds customer ceiling 10%", "Margin below floor"]`)
+  - Response 200: `QuoteRiskResponse` (`quote_id`, `risk_score`, `requires_approval`, `requires_manager_approval`, `requires_finance_approval`, `violations`, `reasons`)
 
-### 3.3 Approval Workflow [PLANNED]
-- **`GET /api/quotes/{quote_id}/approvals`** `[PLANNED / NOT IMPLEMENTED]`
-  - Access: `SALES_REP`, `SALES_MANAGER`, `FINANCE`, `ADMIN`
-  - Response 200: Array of `ApprovalResponse` (`id`, `approval_type`, `status`, `reason`, `comments`)
-- **`POST /api/quotes/{quote_id}/approve`** `[PLANNED / NOT IMPLEMENTED]`
+### 3.3 Approval Workflow [IMPLEMENTED — PERSON 2]
+- **`GET /api/quotes/{quote_id}/approvals`**
+  - Access: Authenticated
+  - Response 200: Array of `ApprovalResponse` (`id`, `approval_type`, `status`, `reason`, `comments`, `resolved_at`)
+- **`POST /api/quotes/{quote_id}/approve`**
   - Access: `SALES_MANAGER`, `FINANCE`, `ADMIN`
-  - Request: `{"comments": "Approved after margin review"}`
+  - Request (optional): `{"comments": "Approved after margin assessment"}`
   - Response 200: Updated `ApprovalResponse`
-- **`POST /api/quotes/{quote_id}/reject`** `[PLANNED / NOT IMPLEMENTED]`
+- **`POST /api/quotes/{quote_id}/reject`**
   - Access: `SALES_MANAGER`, `FINANCE`, `ADMIN`
-  - Request: `{"comments": "Discount too high, renegotiate"}`
+  - Request (optional): `{"comments": "Discount excessive for standard tier"}`
   - Response 200: Updated `ApprovalResponse`
 
 ### 3.4 Recommendations & Advisory [PLANNED]

@@ -1,11 +1,14 @@
 from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
+import os
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.routes.health import router as health_router
 from app.api.routes.auth import router as auth_router
+from app.api.routes.quotes import router as quotes_router
+from app.api.routes.catalog import router as catalog_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -74,6 +77,14 @@ async def generic_exception_handler(request: Request, exc: Exception):
 # Routers
 app.include_router(health_router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
+app.include_router(quotes_router, prefix=settings.API_V1_PREFIX)
+app.include_router(catalog_router, prefix=settings.API_V1_PREFIX)
+
+
+@app.get("/demo")
+def demo_ui():
+    demo_file = os.path.join(os.path.dirname(__file__), "static", "demo.html")
+    return FileResponse(demo_file, media_type="text/html")
 
 
 @app.get("/")
@@ -82,5 +93,6 @@ def root():
         "name": settings.PROJECT_NAME,
         "version": settings.VERSION,
         "docs": f"{settings.API_V1_PREFIX}/docs",
-        "health": f"{settings.API_V1_PREFIX}/health"
+        "health": f"{settings.API_V1_PREFIX}/health",
+        "demo": "/demo"
     }

@@ -1,8 +1,9 @@
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 from app.models.quote import LineType, QuoteStatus
 from app.schemas.customer import CustomerResponse
+from app.schemas.approval import ApprovalResponse
 
 
 class QuoteLineBase(BaseModel):
@@ -39,6 +40,12 @@ class QuoteCreate(QuoteBase):
     lines: List[QuoteLineCreate] = []
 
 
+class QuoteUpdate(BaseModel):
+    customer_id: Optional[int] = None
+    lines: Optional[List[QuoteLineCreate]] = None
+    status: Optional[QuoteStatus] = None
+
+
 class QuoteResponse(BaseModel):
     id: int
     quote_number: str
@@ -54,12 +61,25 @@ class QuoteResponse(BaseModel):
     updated_at: Optional[datetime] = None
     lines: List[QuoteLineResponse] = []
     customer: Optional[CustomerResponse] = None
+    approvals: List[ApprovalResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class LineViolation(BaseModel):
+    product: str
+    product_id: Optional[int] = None
+    line_id: Optional[int] = None
+    allowed_discount: float
+    requested_discount: float
+    excess: float
 
 
 class QuoteRiskResponse(BaseModel):
     quote_id: int
     risk_score: float
     requires_approval: bool
+    requires_manager_approval: bool = False
+    requires_finance_approval: bool = False
+    violations: List[LineViolation] = []
     reasons: List[str] = []
