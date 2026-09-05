@@ -425,7 +425,7 @@ class NegotiationService:
             )
             if mgr_app:
                 mgr_app.status = ApprovalStatus.PENDING
-                mgr_app.comments = None
+                mgr_app.comments = comments or mgr_app.comments
                 mgr_app.resolved_at = None
                 mgr_app.reason = f"Re-approval required: Negotiation #{negotiation.id} approved ({negotiation.requested_change} -> {negotiation.proposed_value})"
             else:
@@ -433,6 +433,7 @@ class NegotiationService:
                     quote_id=quote.id,
                     approval_type=ApprovalType.MANAGER,
                     status=ApprovalStatus.PENDING,
+                    comments=comments,
                     reason=f"Re-approval required: Negotiation #{negotiation.id} approved ({negotiation.requested_change} -> {negotiation.proposed_value})",
                 )
                 db.add(mgr_app)

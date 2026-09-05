@@ -18,6 +18,8 @@ import {
   Eye,
   CreditCard,
   X,
+  XCircle,
+  ShieldCheck,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -777,6 +779,177 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                   <span>${selectedQuote.total_amount.toFixed(2)}</span>
                 </div>
               </div>
+
+              {/* Approval & Governance */}
+              {(() => {
+                const rawApprovals =
+                  selectedQuote.approval_summary?.approvals ||
+                  selectedQuote.approvals ||
+                  [];
+                const mgrApp = rawApprovals.find(
+                  (a) => (a.type || a.approval_type) === "MANAGER"
+                );
+                const finApp = rawApprovals.find(
+                  (a) => (a.type || a.approval_type) === "FINANCE"
+                );
+
+                const itemsToDisplay = [];
+
+                if (mgrApp) {
+                  itemsToDisplay.push(mgrApp);
+                } else if (
+                  selectedQuote.status === "PENDING_APPROVAL" ||
+                  selectedQuote.status === "APPROVED" ||
+                  selectedQuote.status === "ACCEPTED"
+                ) {
+                  itemsToDisplay.push({
+                    type: "MANAGER",
+                    approval_type: "MANAGER",
+                    status:
+                      selectedQuote.status === "PENDING_APPROVAL"
+                        ? "PENDING"
+                        : "APPROVED",
+                    notes: null,
+                  });
+                }
+
+                if (finApp) {
+                  itemsToDisplay.push(finApp);
+                }
+
+                if (itemsToDisplay.length === 0) return null;
+
+                return (
+                  <div style={{ marginBottom: "1.5rem" }}>
+                    <h3
+                      style={{
+                        fontSize: "1rem",
+                        fontWeight: 700,
+                        marginBottom: "0.75rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        color: "var(--text-primary)",
+                      }}
+                    >
+                      <ShieldCheck size={16} color="var(--primary)" /> Approval &amp; Governance
+                    </h3>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                      {itemsToDisplay.map((app, idx) => {
+                        const appType = (app.type || app.approval_type || "").toUpperCase();
+                        const isFinance = appType === "FINANCE";
+                        const roleLabel = isFinance ? "Finance" : "Sales Manager";
+                        const isApproved = app.status === "APPROVED" || app.status === "ACCEPTED";
+                        const isPending = app.status === "PENDING";
+                        const isRejected = app.status === "REJECTED";
+
+                        const rawNote = app.notes || app.comments;
+                        const hasNote =
+                          typeof rawNote === "string" &&
+                          rawNote.trim() !== "" &&
+                          !["null", "undefined", "n/a", "none"].includes(rawNote.trim().toLowerCase());
+
+                        return (
+                          <div
+                            key={app.id || idx}
+                            className="approval-governance-item"
+                            style={{
+                              padding: "0.9rem 1.1rem",
+                              background: "var(--bg-surface-elevated)",
+                              border: "1px solid var(--border-subtle)",
+                              borderRadius: "var(--radius-md)",
+                              borderLeft: isApproved
+                                ? "4px solid var(--status-healthy)"
+                                : isRejected
+                                ? "4px solid var(--status-high)"
+                                : "4px solid var(--status-medium)",
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                {isApproved ? (
+                                  <>
+                                    <CheckCircle2 size={16} color="var(--status-healthy)" />
+                                    <span style={{ fontWeight: 700, color: "var(--status-healthy-text)", fontSize: "0.92rem" }}>
+                                      {roleLabel} Approved
+                                    </span>
+                                  </>
+                                ) : isRejected ? (
+                                  <>
+                                    <XCircle size={16} color="var(--status-high)" />
+                                    <span style={{ fontWeight: 700, color: "var(--status-high-text)", fontSize: "0.92rem" }}>
+                                      {roleLabel} Rejected
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span
+                                      style={{
+                                        display: "inline-block",
+                                        width: 14,
+                                        height: 14,
+                                        borderRadius: "50%",
+                                        border: "2px solid var(--text-muted)",
+                                        boxSizing: "border-box",
+                                      }}
+                                    />
+                                    <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "0.92rem" }}>
+                                      {roleLabel} Approval
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                              <span
+                                className={`badge ${
+                                  isApproved
+                                    ? "badge-healthy"
+                                    : isRejected
+                                    ? "badge-high"
+                                    : "badge-medium"
+                                }`}
+                              >
+                                {isApproved ? "Approved" : isRejected ? "Rejected" : "Pending"}
+                              </span>
+                            </div>
+
+                            {/* Pending state */}
+                            {isPending && (
+                              <div
+                                style={{
+                                  marginTop: "0.35rem",
+                                  fontSize: "0.85rem",
+                                  color: "var(--text-muted)",
+                                  paddingLeft: "1.4rem",
+                                }}
+                              >
+                                Pending
+                              </div>
+                            )}
+
+                            {/* Real Governance Note */}
+                            {hasNote && (
+                              <div
+                                style={{
+                                  marginTop: "0.6rem",
+                                  fontSize: "0.88rem",
+                                  color: "var(--text-secondary)",
+                                  lineHeight: 1.5,
+                                  background: "#FFFFFF",
+                                  border: "1px solid var(--border-subtle)",
+                                  borderRadius: "var(--radius-sm)",
+                                  padding: "0.6rem 0.85rem",
+                                }}
+                              >
+                                {rawNote.trim()}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Negotiation Thread */}
               <div>

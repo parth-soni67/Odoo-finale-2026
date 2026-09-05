@@ -30,14 +30,14 @@ class PortalService:
     def get_customer_quote_detail(self, db: Session, current_user: User, quote_id: int) -> Dict[str, Any]:
         """Fetch quote detail for the customer portal with strict access control.
 
-        Internal approval comments, risk scores, and manager notes are deliberately omitted.
+        Includes customer-visible approval and governance notes while strictly isolating risk calculations and internal metadata.
         """
-        customer = customer_service.get_customer_for_user(db, current_user)
         quote = (
             db.query(Quote)
             .options(
                 joinedload(Quote.lines).joinedload(QuoteLine.product),
                 joinedload(Quote.negotiations),
+                joinedload(Quote.approvals),
             )
             .filter(Quote.id == quote_id)
             .first()
@@ -49,15 +49,19 @@ class PortalService:
                 detail={"code": "QUOTE_NOT_FOUND", "message": f"Quote {quote_id} not found"},
             )
 
-        # Strict Multi-Tenant Customer Isolation
-        if quote.customer_id != customer.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "code": "FORBIDDEN",
-                    "message": "Access denied. You do not have permission to access this quote.",
-                },
-            )
+        if current_user.role == Role.CUSTOMER:
+            customer = customer_service.get_customer_for_user(db, current_user)
+            # Strict Multi-Tenant Customer Isolation
+            if quote.customer_id != customer.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "code": "FORBIDDEN",
+                        "message": "Access denied. You do not have permission to access this quote.",
+                    },
+                )
+        else:
+            customer = quote.customer or customer_service.get_customer_by_id(db, quote.customer_id)
 
         # Construct sanitized, customer-safe quote payload
         lines_data = []
@@ -95,6 +99,30 @@ class PortalService:
                 "resolved_at": neg.resolved_at.isoformat() if neg.resolved_at else None,
             })
 
+        # Construct customer-safe approval & governance summary
+        approvals_data = []
+        sorted_approvals = sorted(
+            quote.approvals,
+            key=lambda a: 0 if getattr(a.approval_type, "value", str(a.approval_type)) == "MANAGER" else 1,
+        )
+        for app in sorted_approvals:
+            app_type = getattr(app.approval_type, "value", str(app.approval_type))
+            app_status = getattr(app.status, "value", str(app.status))
+            approvals_data.append({
+                "id": app.id,
+                "type": app_type,
+                "approval_type": app_type,
+                "status": app_status,
+                "notes": app.comments,
+                "comments": app.comments,
+                "resolved_at": app.resolved_at.isoformat() if app.resolved_at else None,
+            })
+
+        approval_summary = {
+            "status": quote.status.value,
+            "approvals": approvals_data,
+        }
+
         current_disc_pct = round((quote.total_discount / quote.subtotal) * 100.0, 1) if quote.subtotal > 0 else 0.0
         from app.services.discount_service import discount_service
         gov = discount_service.calculate_quote_max_permissible_discount(db, quote)
@@ -104,7 +132,7 @@ class PortalService:
             "id": quote.id,
             "quote_number": quote.quote_number,
             "customer_id": quote.customer_id,
-            "company_name": customer.company_name,
+            "company_name": customer.company_name if customer else "Acme Corp",
             "status": quote.status.value,
             "subtotal": quote.subtotal,
             "total_discount": quote.total_discount,
@@ -115,6 +143,8 @@ class PortalService:
             "updated_at": quote.updated_at.isoformat() if quote.updated_at else None,
             "lines": lines_data,
             "negotiations": negotiations_data,
+            "approval_summary": approval_summary,
+            "approvals": approvals_data,
         }
 
     def confirm_quote(self, db: Session, current_user: User, quote_id: int) -> Dict[str, Any]:
