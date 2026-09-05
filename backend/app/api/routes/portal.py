@@ -117,13 +117,20 @@ def get_portal_invoices(
     results = []
     for inv in invoices:
         amt = getattr(inv, "total_amount", getattr(inv, "amount", 0.0))
+        order_num = inv.order.order_number if getattr(inv, "order", None) else (f"ORD-{inv.order_id}" if inv.order_id else None)
         results.append({
             "id": inv.id,
             "invoice_number": inv.invoice_number,
             "order_id": inv.order_id,
+            "order_number": order_num,
+            "subscription_id": inv.subscription_id,
             "status": inv.status.value if hasattr(inv.status, "value") else str(inv.status),
+            "subtotal": getattr(inv, "subtotal", amt) or amt,
+            "discount": getattr(inv, "discount", 0.0) or 0.0,
+            "tax": getattr(inv, "tax", 0.0) or 0.0,
             "amount": amt,
             "total_amount": amt,
+            "currency": getattr(inv, "currency", "USD") or "USD",
             "billing_type": inv.billing_type.value if hasattr(inv.billing_type, "value") else str(inv.billing_type),
             "due_date": inv.due_date.isoformat() if inv.due_date else None,
             "created_at": inv.created_at.isoformat() if inv.created_at else None,

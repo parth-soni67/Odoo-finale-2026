@@ -2,6 +2,7 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from app.models.order import Order, OrderLine, OrderStatus, FulfillmentSplit, FulfillmentSplitStatus
+from app.models.product import Product
 from app.models.warehouse import Warehouse, Inventory
 from app.models.audit import AuditLog
 

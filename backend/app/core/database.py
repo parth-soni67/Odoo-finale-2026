@@ -88,6 +88,16 @@ def sync_db_schema(bind_engine=engine) -> None:
             ("quantity_allocated", "INTEGER DEFAULT 0"),
             ("updated_at", dt_type),
         ],
+        "invoices": [
+            ("subscription_id", "INTEGER"),
+            ("subtotal", "FLOAT DEFAULT 0.0"),
+            ("discount", "FLOAT DEFAULT 0.0"),
+            ("tax", "FLOAT DEFAULT 0.0"),
+            ("currency", "VARCHAR(10) DEFAULT 'USD'"),
+            ("period_start", dt_type),
+            ("period_end", dt_type),
+            ("updated_at", dt_type),
+        ],
     }
 
     with bind_engine.connect() as conn:

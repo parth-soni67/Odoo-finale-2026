@@ -65,7 +65,7 @@ class OrderService:
         # Automatically create and activate subscriptions for lines with subscription entitlements or recurring type
         from datetime import datetime, timezone, timedelta
         from dateutil.relativedelta import relativedelta
-        from app.models.billing import Subscription, SubscriptionStatus, Invoice, InvoiceStatus, BillingType
+        from app.models.billing import Subscription, SubscriptionStatus, Invoice, InvoiceLine, InvoiceStatus, BillingType
 
         now_utc = datetime.now(timezone.utc)
         created_subs = []
@@ -154,18 +154,42 @@ class OrderService:
                     .first()
                 )
                 if not existing_rec_inv:
-                    rec_amount = line.line_total if line.line_total > 0 else (line.unit_price * line.quantity)
+                    line_subtotal = round(float(line.unit_price * line.quantity), 2)
+                    line_discount = round(float(line_subtotal * (line.discount_percent / 100.0)), 2)
+                    rec_amount = round(float(line_subtotal - line_discount), 2)
+
                     rec_invoice = Invoice(
                         invoice_number=f"INV-REC-{uuid.uuid4().hex[:8].upper()}",
                         order_id=order.id,
                         customer_id=order.customer_id,
-                        total_amount=round(float(rec_amount), 2),
+                        subscription_id=sub.id,
+                        subtotal=line_subtotal,
+                        discount=line_discount,
+                        tax=0.0,
+                        total_amount=rec_amount,
+                        currency="USD",
                         status=InvoiceStatus.ISSUED,
                         billing_type=BillingType.RECURRING,
+                        period_start=sub.start_date,
+                        period_end=sub.next_billing_date or sub.end_date,
                         due_date=now_utc + timedelta(days=30),
                     )
                     db.add(rec_invoice)
                     db.flush()
+
+                    rec_line_item = InvoiceLine(
+                        invoice_id=rec_invoice.id,
+                        product_id=line.product_id,
+                        subscription_id=sub.id,
+                        product_name=line.product.name if line.product else (sub.name or "Subscription Item"),
+                        sku=line.product.sku if line.product else None,
+                        quantity=line.quantity,
+                        unit_price=line.unit_price,
+                        discount=line_discount,
+                        line_total=rec_amount,
+                        billing_type=BillingType.RECURRING,
+                    )
+                    db.add(rec_line_item)
 
                     inv_audit = AuditLog(
                         user_id=user_id,
@@ -178,29 +202,53 @@ class OrderService:
             
         # Generate one-time invoice for physical/one-time items if requested (e.g. customer accepted quote)
         if auto_activate_subscriptions:
-            one_time_total = sum(
-                (line.line_total if line.line_total > 0 else (line.unit_price * line.quantity))
-                for line in order.lines
-                if getattr(line.line_type, "value", str(line.line_type)) == "ONE_TIME"
-            )
-            if one_time_total > 0:
+            one_time_lines = [
+                l for l in order.lines
+                if getattr(l.line_type, "value", str(l.line_type)) == "ONE_TIME"
+            ]
+            if one_time_lines:
                 existing_one_time_inv = (
                     db.query(Invoice)
                     .filter(Invoice.order_id == order.id, Invoice.billing_type == BillingType.ONE_TIME)
                     .first()
                 )
                 if not existing_one_time_inv:
+                    ot_subtotal = round(sum(l.unit_price * l.quantity for l in one_time_lines), 2)
+                    ot_discount = round(sum((l.unit_price * l.quantity) * (l.discount_percent / 100.0) for l in one_time_lines), 2)
+                    one_time_total = round(ot_subtotal - ot_discount, 2)
+
                     one_time_invoice = Invoice(
                         invoice_number=f"INV-ONE-{uuid.uuid4().hex[:8].upper()}",
                         order_id=order.id,
                         customer_id=order.customer_id,
-                        total_amount=round(float(one_time_total), 2),
+                        subtotal=ot_subtotal,
+                        discount=ot_discount,
+                        tax=0.0,
+                        total_amount=one_time_total,
+                        currency="USD",
                         status=InvoiceStatus.ISSUED,
                         billing_type=BillingType.ONE_TIME,
                         due_date=now_utc + timedelta(days=30),
                     )
                     db.add(one_time_invoice)
                     db.flush()
+
+                    for ot_line in one_time_lines:
+                        l_sub = round(ot_line.unit_price * ot_line.quantity, 2)
+                        l_disc = round(l_sub * (ot_line.discount_percent / 100.0), 2)
+                        l_tot = round(l_sub - l_disc, 2)
+                        ot_line_item = InvoiceLine(
+                            invoice_id=one_time_invoice.id,
+                            product_id=ot_line.product_id,
+                            product_name=ot_line.product.name if ot_line.product else "One-Time Product",
+                            sku=ot_line.product.sku if ot_line.product else None,
+                            quantity=ot_line.quantity,
+                            unit_price=ot_line.unit_price,
+                            discount=l_disc,
+                            line_total=l_tot,
+                            billing_type=BillingType.ONE_TIME,
+                        )
+                        db.add(ot_line_item)
 
                     inv_audit = AuditLog(
                         user_id=user_id,

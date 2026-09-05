@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../api";
-import { Receipt, Clock, RotateCcw, Sparkles } from "lucide-react";
+import { Receipt, Clock, RotateCcw, Sparkles, Play, Download, FileSpreadsheet, CreditCard } from "lucide-react";
 
 export function FinanceBilling({ onNotify }) {
   const [invoices, setInvoices] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [runningBilling, setRunningBilling] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
 
   useEffect(() => {
     loadBilling();
@@ -24,6 +26,57 @@ export function FinanceBilling({ onNotify }) {
       onNotify("Error loading billing data: " + err.message, "error");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleRunBilling() {
+    setRunningBilling(true);
+    try {
+      const res = await api.runBilling();
+      onNotify(res.message || `Billing run executed: ${res.invoices_generated} invoice(s) generated.`, "success");
+      await loadBilling();
+    } catch (err) {
+      onNotify("Billing run failed: " + err.message, "error");
+    } finally {
+      setRunningBilling(false);
+    }
+  }
+
+  async function handleDownloadPdf(inv) {
+    try {
+      setActionLoadingId(`pdf-${inv.id}`);
+      await api.downloadInvoicePdf(inv.id, inv.invoice_number);
+      onNotify(`Downloaded PDF for ${inv.invoice_number}`, "success");
+    } catch (err) {
+      onNotify("PDF download failed: " + err.message, "error");
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
+
+  async function handleDownloadXlsx(inv) {
+    try {
+      setActionLoadingId(`xlsx-${inv.id}`);
+      await api.downloadInvoiceXlsx(inv.id, inv.invoice_number);
+      onNotify(`Downloaded XLS for ${inv.invoice_number}`, "success");
+    } catch (err) {
+      onNotify("XLS download failed: " + err.message, "error");
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
+
+  async function handleProcessPayment(inv) {
+    try {
+      setActionLoadingId(`pay-${inv.id}`);
+      const amt = inv.total_amount !== undefined ? inv.total_amount : inv.amount;
+      await api.payInvoice(inv.id, { amount: amt, payment_method: "SIMULATED_CARD" });
+      onNotify(`Payment recorded for ${inv.invoice_number}. Status updated to PAID.`, "success");
+      await loadBilling();
+    } catch (err) {
+      onNotify("Payment processing failed: " + err.message, "error");
+    } finally {
+      setActionLoadingId(null);
     }
   }
 
@@ -47,9 +100,19 @@ export function FinanceBilling({ onNotify }) {
             Reconcile one-time hardware payments, recurring SaaS subscriptions, and invoice statuses.
           </p>
         </div>
-        <button className="btn btn-secondary" onClick={loadBilling}>
-          <RotateCcw size={14} /> Refresh
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button
+            className="btn btn-primary"
+            onClick={handleRunBilling}
+            disabled={runningBilling}
+            style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
+          >
+            <Play size={14} /> {runningBilling ? "Running Billing Engine..." : "Run Recurring Billing"}
+          </button>
+          <button className="btn btn-secondary" onClick={loadBilling}>
+            <RotateCcw size={14} /> Refresh
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -145,11 +208,13 @@ export function FinanceBilling({ onNotify }) {
                       <th>Status</th>
                       <th>Due Date</th>
                       <th>Created</th>
+                      <th style={{ textAlign: "center" }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {invoices.map((inv) => {
                       const amt = inv.total_amount !== undefined ? inv.total_amount : inv.amount || 0;
+                      const isPaid = inv.status === "PAID";
                       return (
                         <tr key={inv.id}>
                           <td><strong>{inv.invoice_number || `INV-${inv.id}`}</strong></td>
@@ -172,6 +237,39 @@ export function FinanceBilling({ onNotify }) {
                           </td>
                           <td style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
                             {inv.created_at ? new Date(inv.created_at).toLocaleDateString() : "Recent"}
+                          </td>
+                          <td style={{ textAlign: "center" }}>
+                            <div style={{ display: "flex", gap: "0.35rem", justifyContent: "center" }}>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                title="Download PDF"
+                                onClick={() => handleDownloadPdf(inv)}
+                                disabled={actionLoadingId === `pdf-${inv.id}`}
+                                style={{ padding: "0.2rem 0.45rem", fontSize: "0.75rem" }}
+                              >
+                                <Download size={13} /> PDF
+                              </button>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                title="Download Excel"
+                                onClick={() => handleDownloadXlsx(inv)}
+                                disabled={actionLoadingId === `xlsx-${inv.id}`}
+                                style={{ padding: "0.2rem 0.45rem", fontSize: "0.75rem" }}
+                              >
+                                <FileSpreadsheet size={13} /> XLS
+                              </button>
+                              {!isPaid && (
+                                <button
+                                  className="btn btn-primary btn-sm"
+                                  title="Mark Paid"
+                                  onClick={() => handleProcessPayment(inv)}
+                                  disabled={actionLoadingId === `pay-${inv.id}`}
+                                  style={{ padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}
+                                >
+                                  <CreditCard size={13} /> Pay
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );

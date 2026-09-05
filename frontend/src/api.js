@@ -47,6 +47,28 @@ async function request(path, options = {}) {
   return data;
 }
 
+async function downloadFile(path, filename) {
+  const token = getStoredToken();
+  const headers = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE}${path}`, { headers });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.error?.message || data?.detail?.message || `Download failed (HTTP ${res.status})`);
+  }
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 export const api = {
   // Auth
   async login(email, password) {
@@ -186,11 +208,60 @@ export const api = {
   },
 
   async getPortalInvoices() {
-    return request("/portal/invoices");
+    return request("/invoices");
   },
 
   async getPortalSubscriptions() {
-    return request("/portal/subscriptions");
+    return request("/subscriptions");
+  },
+
+  // Billing & Invoices
+  async getInvoices(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return request(`/invoices${query ? `?${query}` : ""}`);
+  },
+
+  async getInvoice(id) {
+    return request(`/invoices/${id}`);
+  },
+
+  async payInvoice(id, payload = {}) {
+    return request(`/invoices/${id}/payment`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async downloadInvoicePdf(id, invoiceNumber = "invoice") {
+    return downloadFile(`/invoices/${id}/pdf`, `Invoice-${invoiceNumber}.pdf`);
+  },
+
+  async downloadInvoiceXlsx(id, invoiceNumber = "invoice") {
+    return downloadFile(`/invoices/${id}/xlsx`, `Invoice-${invoiceNumber}.xlsx`);
+  },
+
+  async runBilling(payload = {}) {
+    return request("/billing/run", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getCustomerInvoices(customerId) {
+    return request(`/customers/${customerId}/invoices`);
+  },
+
+  async getOrderInvoices(orderId) {
+    return request(`/orders/${orderId}/invoices`);
+  },
+
+  async getSubscriptions(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return request(`/subscriptions${query ? `?${query}` : ""}`);
+  },
+
+  async getSubscription(id) {
+    return request(`/subscriptions/${id}`);
   },
 
   // Deal Health

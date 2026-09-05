@@ -16,6 +16,7 @@ class InvoiceStatus(str, enum.Enum):
     PAID = "PAID"
     OVERDUE = "OVERDUE"
     VOID = "VOID"
+    CANCELLED = "CANCELLED"
 
 
 class PaymentStatus(str, enum.Enum):
@@ -73,6 +74,7 @@ class Subscription(Base):
     plan = relationship("SubscriptionPlan", back_populates="subscriptions")
     order = relationship("Order", back_populates="subscriptions")
     product = relationship("Product", back_populates="subscriptions")
+    invoices = relationship("Invoice", back_populates="subscription")
 
 
 class Invoice(Base):
@@ -82,16 +84,48 @@ class Invoice(Base):
     invoice_number = Column(String(50), unique=True, index=True, nullable=False)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    subscription_id = Column(Integer, ForeignKey("subscriptions.id"), nullable=True)
+    subtotal = Column(Float, default=0.0, nullable=False)
+    discount = Column(Float, default=0.0, nullable=False)
+    tax = Column(Float, default=0.0, nullable=False)
     total_amount = Column(Float, nullable=False)
+    currency = Column(String(10), default="USD", nullable=False)
     status = Column(Enum(InvoiceStatus), default=InvoiceStatus.DRAFT, nullable=False)
     due_date = Column(DateTime(timezone=True), nullable=True)
     billing_type = Column(Enum(BillingType), default=BillingType.ONE_TIME, nullable=False)
+    period_start = Column(DateTime(timezone=True), nullable=True)
+    period_end = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
     # Relationships
     order = relationship("Order", back_populates="invoices")
     customer = relationship("Customer", back_populates="invoices")
+    subscription = relationship("Subscription", back_populates="invoices")
+    lines = relationship("InvoiceLine", back_populates="invoice", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan")
+
+
+class InvoiceLine(Base):
+    __tablename__ = "invoice_lines"
+
+    id = Column(Integer, primary_key=True, index=True)
+    invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
+    subscription_id = Column(Integer, ForeignKey("subscriptions.id"), nullable=True)
+    product_name = Column(String(255), nullable=False)
+    sku = Column(String(100), nullable=True)
+    quantity = Column(Integer, default=1, nullable=False)
+    unit_price = Column(Float, nullable=False)
+    discount = Column(Float, default=0.0, nullable=False)
+    line_total = Column(Float, nullable=False)
+    billing_type = Column(Enum(BillingType), default=BillingType.ONE_TIME, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    invoice = relationship("Invoice", back_populates="lines")
+    product = relationship("Product")
+    subscription = relationship("Subscription")
 
 
 class Payment(Base):

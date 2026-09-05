@@ -39,8 +39,8 @@ class SubscriptionResponse(BaseModel):
 
 
 class PaymentCreate(BaseModel):
-    invoice_id: int
-    amount: float
+    invoice_id: Optional[int] = None
+    amount: Optional[float] = None
     payment_method: str = "SIMULATED_CARD"
 
 
@@ -56,15 +56,55 @@ class PaymentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class InvoiceLineResponse(BaseModel):
+    id: int
+    invoice_id: int
+    product_id: Optional[int] = None
+    subscription_id: Optional[int] = None
+    product_name: str
+    sku: Optional[str] = None
+    quantity: int = 1
+    unit_price: float = 0.0
+    discount: float = 0.0
+    line_total: float = 0.0
+    billing_type: BillingType = BillingType.ONE_TIME
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class InvoiceResponse(BaseModel):
     id: int
     invoice_number: str
     order_id: Optional[int] = None
     customer_id: int
+    subscription_id: Optional[int] = None
+    subtotal: float = 0.0
+    discount: float = 0.0
+    tax: float = 0.0
     total_amount: float
+    currency: str = "USD"
     status: InvoiceStatus
     due_date: Optional[datetime] = None
     billing_type: BillingType
+    period_start: Optional[datetime] = None
+    period_end: Optional[datetime] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class InvoiceDetailResponse(InvoiceResponse):
+    customer_name: Optional[str] = None
+    customer_email: Optional[str] = None
+    order_number: Optional[str] = None
+    lines: list[InvoiceLineResponse] = []
+    payments: list[PaymentResponse] = []
+
+
+class BillingRunResponse(BaseModel):
+    message: str
+    invoices_generated: int
+    subscriptions_processed: int
+    expired_subscriptions: int
+    invoice_ids: list[int] = []

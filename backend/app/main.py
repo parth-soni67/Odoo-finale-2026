@@ -18,6 +18,7 @@ from app.api.routes.deal_health import router as deal_health_router
 from app.api.routes.reports import router as reports_router
 from app.api.routes.warehouses import router as warehouses_router
 from app.api.routes.inventory import router as inventory_router
+from app.api.routes.invoices import router as invoices_router
 
 from contextlib import asynccontextmanager
 
@@ -110,6 +111,7 @@ app.include_router(deal_health_router, prefix=settings.API_V1_PREFIX)
 app.include_router(reports_router, prefix=settings.API_V1_PREFIX)
 app.include_router(warehouses_router, prefix=settings.API_V1_PREFIX)
 app.include_router(inventory_router, prefix=settings.API_V1_PREFIX)
+app.include_router(invoices_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/demo")

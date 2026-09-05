@@ -13,6 +13,12 @@ import {
   AlertCircle,
   RotateCcw,
   Sparkles,
+  Download,
+  FileSpreadsheet,
+  Eye,
+  CreditCard,
+  X,
+  ExternalLink,
 } from "lucide-react";
 
 function formatNegotiationDisplay(neg) {
@@ -161,6 +167,9 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
   const [portalInvoices, setPortalInvoices] = useState([]);
   const [portalSubscriptions, setPortalSubscriptions] = useState([]);
   const [billingLoading, setBillingLoading] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [invoiceModalLoading, setInvoiceModalLoading] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
 
   useEffect(() => {
     if (activeSubTab && activeSubTab !== activeTab) {
@@ -197,6 +206,60 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
       // ignore
     } finally {
       setBillingLoading(false);
+    }
+  }
+
+  async function handleViewInvoice(invoiceId) {
+    setInvoiceModalLoading(true);
+    try {
+      const inv = await api.getInvoice(invoiceId);
+      setSelectedInvoice(inv);
+    } catch (err) {
+      if (onNotify) onNotify(err.message || "Failed to load invoice details", "error");
+    } finally {
+      setInvoiceModalLoading(false);
+    }
+  }
+
+  async function handleDownloadPdf(invoice) {
+    try {
+      setActionLoadingId(`pdf-${invoice.id}`);
+      await api.downloadInvoicePdf(invoice.id, invoice.invoice_number);
+      if (onNotify) onNotify(`Downloaded PDF for ${invoice.invoice_number}`, "success");
+    } catch (err) {
+      if (onNotify) onNotify(err.message || "Failed to download PDF", "error");
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
+
+  async function handleDownloadXlsx(invoice) {
+    try {
+      setActionLoadingId(`xlsx-${invoice.id}`);
+      await api.downloadInvoiceXlsx(invoice.id, invoice.invoice_number);
+      if (onNotify) onNotify(`Downloaded XLS for ${invoice.invoice_number}`, "success");
+    } catch (err) {
+      if (onNotify) onNotify(err.message || "Failed to download Excel file", "error");
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
+
+  async function handlePayInvoice(invoice) {
+    try {
+      setActionLoadingId(`pay-${invoice.id}`);
+      const amt = invoice.total_amount !== undefined ? invoice.total_amount : invoice.amount;
+      await api.payInvoice(invoice.id, { amount: amt, payment_method: "SIMULATED_CARD" });
+      if (onNotify) onNotify(`Payment of $${Number(amt).toLocaleString(undefined, { minimumFractionDigits: 2 })} successful! Invoice marked PAID.`, "success");
+      await loadBillingData();
+      if (selectedInvoice && selectedInvoice.id === invoice.id) {
+        const updated = await api.getInvoice(invoice.id);
+        setSelectedInvoice(updated);
+      }
+    } catch (err) {
+      if (onNotify) onNotify(err.message || "Payment simulation failed", "error");
+    } finally {
+      setActionLoadingId(null);
     }
   }
 
@@ -1134,133 +1197,298 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
         </div>
       )}
 
-      {/* Tab: Billing */}
+      {/* Tab: Billing & Invoices */}
       {activeTab === "billing" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-          {/* Active Subscriptions & Recurring Entitlements */}
-          <div className="card">
-            <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div className="card-title" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <Sparkles size={18} color="var(--primary)" /> Active Subscriptions & Recurring Plans
-              </div>
-              <span className="badge badge-info">{portalSubscriptions.length} Plans</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem" }}>
+          {/* Header row with title and refresh */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+            <div>
+              <h2 style={{ fontSize: "1.35rem", fontWeight: 700, margin: 0, color: "var(--text-primary)" }}>
+                Billing & Invoices
+              </h2>
+              <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                Track commercial invoice records, subscription billing schedules, and download financial statements.
+              </p>
             </div>
-
-            {billingLoading ? (
-              <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>
-                Loading subscriptions and billing records...
-              </div>
-            ) : portalSubscriptions.length === 0 ? (
-              <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-secondary)" }}>
-                No active subscriptions yet. Subscriptions and service entitlements activate automatically upon quote acceptance.
-              </div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem" }}>
-                {portalSubscriptions.map((sub) => (
-                  <div
-                    key={sub.id}
-                    style={{
-                      padding: "1.25rem",
-                      borderRadius: "var(--radius-md)",
-                      border: "1px solid var(--border-subtle)",
-                      background: "var(--bg-surface)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <div>
-                        <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: 0, color: "var(--text-primary)" }}>
-                          {sub.name || "Software Entitlement"}
-                        </h4>
-                        {sub.order_id && (
-                          <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-                            Order: ORD-{sub.order_id}
-                          </div>
-                        )}
-                      </div>
-                      <span className={`badge ${sub.status === "ACTIVE" ? "badge-healthy" : "badge-medium"}`}>
-                        {sub.status}
-                      </span>
-                    </div>
-
-                    <div style={{ fontSize: "0.84rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "0.25rem", marginTop: "0.25rem" }}>
-                      <div>
-                        <strong>Duration:</strong> {sub.duration_mode === "LIFETIME" ? "Lifetime Access" : `${sub.validity_value || 1} ${sub.validity_unit || "MONTHS"}`}
-                      </div>
-                      <div>
-                        <strong>Billing Frequency:</strong> {sub.billing_frequency === "NONE" ? "Free / Included" : sub.billing_frequency}
-                      </div>
-                      <div>
-                        <strong>Start Date:</strong> {sub.start_date ? new Date(sub.start_date).toLocaleDateString() : "Upon Finalization"}
-                      </div>
-                      <div>
-                        <strong>End Date:</strong> {sub.end_date ? new Date(sub.end_date).toLocaleDateString() : (sub.duration_mode === "LIFETIME" ? "Lifetime (No Expiration)" : "Calculated from activation")}
-                      </div>
-                      {sub.next_billing_date && (
-                        <div style={{ color: "var(--primary)", fontWeight: 600 }}>
-                          <strong>Next Billing Date:</strong> {new Date(sub.next_billing_date).toLocaleDateString()}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <button
+              className="btn btn-secondary"
+              onClick={loadBillingData}
+              disabled={billingLoading}
+              style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
+            >
+              <RotateCcw size={14} className={billingLoading ? "spin" : ""} /> Refresh Records
+            </button>
           </div>
 
-          {/* Invoices & Commercial Statements */}
+          {/* 1. Summary Cards */}
+          {(() => {
+            const totalInvoices = portalInvoices.length;
+            const paidInvoices = portalInvoices.filter((i) => i.status === "PAID");
+            const outstandingInvoices = portalInvoices.filter((i) => i.status !== "PAID" && i.status !== "CANCELLED" && i.status !== "VOID");
+            const activeSubs = portalSubscriptions.filter((s) => s.status === "ACTIVE");
+
+            const paidSum = paidInvoices.reduce((acc, i) => acc + Number(i.total_amount !== undefined ? i.total_amount : i.amount || 0), 0);
+            const outstandingSum = outstandingInvoices.reduce((acc, i) => acc + Number(i.total_amount !== undefined ? i.total_amount : i.amount || 0), 0);
+
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
+                <div className="card" style={{ padding: "1.25rem", borderLeft: "4px solid var(--primary)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Total Invoices
+                  </div>
+                  <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--text-primary)", marginTop: "0.35rem" }}>
+                    {totalInvoices}
+                  </div>
+                  <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                    Commercial billing records
+                  </div>
+                </div>
+
+                <div className="card" style={{ padding: "1.25rem", borderLeft: "4px solid var(--status-medium)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Outstanding
+                  </div>
+                  <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--status-medium)", marginTop: "0.35rem" }}>
+                    ${outstandingSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                    {outstandingInvoices.length} Unpaid / Issued
+                  </div>
+                </div>
+
+                <div className="card" style={{ padding: "1.25rem", borderLeft: "4px solid var(--status-healthy)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Paid Invoices
+                  </div>
+                  <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--status-healthy)", marginTop: "0.35rem" }}>
+                    ${paidSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                    {paidInvoices.length} Settled in full
+                  </div>
+                </div>
+
+                <div className="card" style={{ padding: "1.25rem", borderLeft: "4px solid #6366F1" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Active Subscriptions
+                  </div>
+                  <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "#6366F1", marginTop: "0.35rem" }}>
+                    {activeSubs.length}
+                  </div>
+                  <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                    Recurring licenses & plans
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* 2. Invoice History Table */}
           <div className="card">
             <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div className="card-title" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <Receipt size={18} color="var(--status-healthy)" /> Invoices & Billing Statements
+                <Receipt size={18} color="var(--primary)" /> Invoice History
               </div>
-              <span className="badge badge-neutral">{portalInvoices.length} Invoices</span>
+              <span className="badge badge-neutral">{portalInvoices.length} Records</span>
             </div>
 
             {billingLoading ? (
-              <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>
-                Loading invoices...
+              <div style={{ textAlign: "center", padding: "2.5rem", color: "var(--text-muted)" }}>
+                Loading invoice records...
               </div>
             ) : portalInvoices.length === 0 ? (
-              <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-secondary)" }}>
-                No invoices issued yet.
+              <div style={{ padding: "3rem 2rem", textAlign: "center", color: "var(--text-secondary)" }}>
+                <Receipt size={36} color="var(--text-muted)" style={{ margin: "0 auto 0.75rem", opacity: 0.5 }} />
+                <h4 style={{ margin: "0 0 0.35rem", color: "var(--text-primary)" }}>No Invoices Issued Yet</h4>
+                <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                  Invoices are generated automatically upon order confirmation and recurring subscription runs.
+                </p>
               </div>
             ) : (
               <div className="table-container">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Invoice #</th>
-                      <th>Order #</th>
-                      <th>Billing Type</th>
-                      <th>Amount</th>
+                      <th>Invoice Number</th>
+                      <th>Date</th>
+                      <th>Order</th>
+                      <th>Type</th>
+                      <th style={{ textAlign: "right" }}>Amount</th>
+                      <th style={{ textAlign: "center" }}>Status</th>
                       <th>Due Date</th>
-                      <th>Status</th>
+                      <th style={{ textAlign: "center" }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {portalInvoices.map((inv) => {
                       const amt = inv.total_amount !== undefined ? inv.total_amount : inv.amount || 0;
+                      const isPaid = inv.status === "PAID";
+                      const dateStr = inv.created_at ? new Date(inv.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+                      const dueStr = inv.due_date ? new Date(inv.due_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "30 Days";
+                      const orderDisplay = inv.order_number || (inv.order_id ? `ORD-${inv.order_id}` : "—");
+
                       return (
                         <tr key={inv.id}>
-                          <td><strong>{inv.invoice_number}</strong></td>
-                          <td>{inv.order_id ? `ORD-${inv.order_id}` : "N/A"}</td>
                           <td>
-                            <span className={`badge ${inv.billing_type === "RECURRING" ? "badge-info" : "badge-neutral"}`}>
-                              {inv.billing_type || "ONE_TIME"}
+                            <strong style={{ color: "var(--primary)", fontFamily: "monospace", fontSize: "0.88rem" }}>
+                              {inv.invoice_number}
+                            </strong>
+                          </td>
+                          <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                            {dateStr}
+                          </td>
+                          <td>
+                            <span style={{ fontSize: "0.82rem", color: "var(--text-muted)", fontFamily: "monospace" }}>
+                              {orderDisplay}
                             </span>
                           </td>
-                          <td style={{ fontWeight: 700 }}>
+                          <td>
+                            <span className={`badge ${inv.billing_type === "RECURRING" ? "badge-info" : "badge-neutral"}`} style={{ fontSize: "0.74rem" }}>
+                              {inv.billing_type === "RECURRING" ? "Recurring" : "One-Time"}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: "right", fontWeight: 700, fontSize: "0.92rem", color: "var(--text-primary)" }}>
                             ${Number(amt).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
-                          <td style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-                            {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "30 Days"}
+                          <td style={{ textAlign: "center" }}>
+                            <span className={`badge ${isPaid ? "badge-healthy" : (inv.status === "OVERDUE" ? "badge-high" : "badge-info")}`}>
+                              {inv.status || "ISSUED"}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                            {dueStr}
+                          </td>
+                          <td style={{ textAlign: "center" }}>
+                            <div style={{ display: "flex", gap: "0.35rem", justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                title="View detailed invoice"
+                                onClick={() => handleViewInvoice(inv.id)}
+                                style={{ padding: "0.25rem 0.5rem", fontSize: "0.78rem" }}
+                              >
+                                <Eye size={13} /> View
+                              </button>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                title="Download PDF document"
+                                onClick={() => handleDownloadPdf(inv)}
+                                disabled={actionLoadingId === `pdf-${inv.id}`}
+                                style={{ padding: "0.25rem 0.5rem", fontSize: "0.78rem" }}
+                              >
+                                <Download size={13} /> PDF
+                              </button>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                title="Download Excel Spreadsheet"
+                                onClick={() => handleDownloadXlsx(inv)}
+                                disabled={actionLoadingId === `xlsx-${inv.id}`}
+                                style={{ padding: "0.25rem 0.5rem", fontSize: "0.78rem" }}
+                              >
+                                <FileSpreadsheet size={13} /> XLS
+                              </button>
+                              {!isPaid && (
+                                <button
+                                  className="btn btn-primary btn-sm"
+                                  title="Pay Invoice with simulated checkout"
+                                  onClick={() => handlePayInvoice(inv)}
+                                  disabled={actionLoadingId === `pay-${inv.id}`}
+                                  style={{ padding: "0.25rem 0.55rem", fontSize: "0.78rem" }}
+                                >
+                                  <CreditCard size={13} /> Pay
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* 3. Subscriptions Section */}
+          <div className="card">
+            <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="card-title" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <Sparkles size={18} color="var(--primary)" /> Subscriptions & Entitlements
+              </div>
+              <span className="badge badge-info">{portalSubscriptions.length} Subscriptions</span>
+            </div>
+
+            {billingLoading ? (
+              <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>
+                Loading subscriptions...
+              </div>
+            ) : portalSubscriptions.length === 0 ? (
+              <div style={{ padding: "2.5rem 2rem", textAlign: "center", color: "var(--text-secondary)" }}>
+                No active subscriptions yet. Digital software licenses and recurring subscriptions activate upon quote acceptance.
+              </div>
+            ) : (
+              <div className="table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Product / Service</th>
+                      <th>Status</th>
+                      <th>Duration</th>
+                      <th>Start Date</th>
+                      <th>End Date</th>
+                      <th>Billing Frequency</th>
+                      <th>Next Billing Date</th>
+                      <th style={{ textAlign: "center" }}>Invoices Generated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {portalSubscriptions.map((sub) => {
+                      const invoicesCount = portalInvoices.filter((i) => i.subscription_id === sub.id).length;
+                      const isLifetime = sub.duration_mode === "LIFETIME";
+                      const startStr = sub.start_date ? new Date(sub.start_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "On Activation";
+                      const endStr = isLifetime ? "Never" : (sub.end_date ? new Date(sub.end_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Calculated");
+                      const nextBillStr = sub.next_billing_date ? new Date(sub.next_billing_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : (sub.status === "EXPIRED" ? "Expired" : "None");
+
+                      return (
+                        <tr key={sub.id}>
+                          <td>
+                            <div>
+                              <strong style={{ color: "var(--text-primary)" }}>{sub.name || "Software Entitlement"}</strong>
+                              {sub.order_id && (
+                                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                                  Order: ORD-{sub.order_id}
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td>
-                            <span className={`badge ${inv.status === "PAID" ? "badge-healthy" : "badge-info"}`}>
-                              {inv.status || "ISSUED"}
+                            <span className={`badge ${sub.status === "ACTIVE" ? "badge-healthy" : "badge-neutral"}`}>
+                              {sub.status}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: "0.85rem" }}>
+                            {isLifetime ? (
+                              <span style={{ fontWeight: 600, color: "var(--primary)" }}>Lifetime Access</span>
+                            ) : (
+                              `${sub.validity_value || 1} ${sub.validity_unit || "MONTHS"}`
+                            )}
+                          </td>
+                          <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                            {startStr}
+                          </td>
+                          <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                            {endStr}
+                          </td>
+                          <td>
+                            <span className={`badge ${sub.billing_frequency && sub.billing_frequency !== "NONE" ? "badge-info" : "badge-neutral"}`}>
+                              {sub.billing_frequency === "NONE" ? "Included" : sub.billing_frequency}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: "0.85rem", fontWeight: 600, color: sub.next_billing_date ? "var(--primary)" : "var(--text-muted)" }}>
+                            {nextBillStr}
+                          </td>
+                          <td style={{ textAlign: "center" }}>
+                            <span className="badge badge-neutral" style={{ fontWeight: 700 }}>
+                              {invoicesCount}
                             </span>
                           </td>
                         </tr>
@@ -1410,6 +1638,239 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Invoice Details View */}
+      {selectedInvoice && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "1rem",
+          }}
+          onClick={() => setSelectedInvoice(null)}
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: "760px",
+              width: "100%",
+              maxHeight: "92vh",
+              overflowY: "auto",
+              padding: "2rem",
+              background: "#ffffff",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+              borderRadius: "var(--radius-lg)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "1px solid var(--border-subtle)", paddingBottom: "1.25rem", marginBottom: "1.5rem" }}>
+              <div>
+                <div style={{ fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--primary)", fontWeight: 700 }}>
+                  DealFlow360 Commercial Invoice
+                </div>
+                <h3 style={{ fontSize: "1.5rem", fontWeight: 800, margin: "0.25rem 0 0", color: "var(--text-primary)" }}>
+                  {selectedInvoice.invoice_number}
+                </h3>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <span className={`badge ${selectedInvoice.status === "PAID" ? "badge-healthy" : "badge-info"}`} style={{ fontSize: "0.85rem", padding: "0.3rem 0.75rem" }}>
+                  {selectedInvoice.status}
+                </span>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setSelectedInvoice(null)}
+                  style={{ padding: "0.35rem", borderRadius: "50%" }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Bill To & Invoice Meta Box */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1.5rem", background: "var(--bg-surface)", padding: "1.25rem", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", marginBottom: "1.5rem" }}>
+              <div>
+                <div style={{ fontSize: "0.75rem", textTransform: "uppercase", fontWeight: 700, color: "var(--text-muted)", marginBottom: "0.4rem" }}>
+                  Bill To
+                </div>
+                <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                  {selectedInvoice.customer_name || profile?.company_name || "Valued Customer"}
+                </div>
+                {profile?.contact_name && (
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginTop: "0.2rem" }}>
+                    Attn: {profile.contact_name}
+                  </div>
+                )}
+                <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.15rem" }}>
+                  {selectedInvoice.customer_email || profile?.email || "billing@customer.com"}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: "0.75rem", textTransform: "uppercase", fontWeight: 700, color: "var(--text-muted)", marginBottom: "0.4rem" }}>
+                  Invoice Details
+                </div>
+                <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                  <div><strong>Invoice Date:</strong> {selectedInvoice.created_at ? new Date(selectedInvoice.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</div>
+                  <div><strong>Due Date:</strong> {selectedInvoice.due_date ? new Date(selectedInvoice.due_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Due on Receipt"}</div>
+                  <div><strong>Order:</strong> {selectedInvoice.order_number || (selectedInvoice.order_id ? `ORD-${selectedInvoice.order_id}` : "N/A")}</div>
+                  <div><strong>Invoice Type:</strong> {selectedInvoice.billing_type === "RECURRING" ? "Recurring Subscription" : "One-Time Purchase"}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Subscription details banner if applicable */}
+            {(selectedInvoice.subscription_id || selectedInvoice.billing_type === "RECURRING") && (
+              <div style={{ background: "rgba(37, 99, 235, 0.06)", border: "1px solid rgba(37, 99, 235, 0.2)", borderRadius: "var(--radius-sm)", padding: "0.85rem 1rem", marginBottom: "1.5rem", fontSize: "0.84rem", color: "var(--text-secondary)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 600, color: "var(--primary)", marginBottom: "0.25rem" }}>
+                  <Sparkles size={15} /> Recurring Subscription Information
+                </div>
+                <div>
+                  {selectedInvoice.period_start && selectedInvoice.period_end ? (
+                    <span><strong>Period:</strong> {new Date(selectedInvoice.period_start).toLocaleDateString()} &rarr; {new Date(selectedInvoice.period_end).toLocaleDateString()}</span>
+                  ) : (
+                    <span>Recurring billing cadence linked to active subscription agreement.</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Line Items Table */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <h4 style={{ fontSize: "0.95rem", fontWeight: 700, margin: "0 0 0.75rem", color: "var(--text-primary)" }}>
+                Invoice Items
+              </h4>
+              <div className="table-container" style={{ border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-sm)" }}>
+                <table className="data-table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr style={{ background: "var(--bg-surface)" }}>
+                      <th>Product</th>
+                      <th>SKU</th>
+                      <th style={{ textAlign: "center" }}>Qty</th>
+                      <th style={{ textAlign: "right" }}>Unit Price</th>
+                      <th style={{ textAlign: "right" }}>Discount</th>
+                      <th style={{ textAlign: "right" }}>Line Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(selectedInvoice.lines && selectedInvoice.lines.length > 0) ? (
+                      selectedInvoice.lines.map((line, idx) => (
+                        <tr key={line.id || idx}>
+                          <td><strong>{line.product_name || "Item"}</strong></td>
+                          <td style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{line.sku || "—"}</td>
+                          <td style={{ textAlign: "center" }}>{line.quantity}</td>
+                          <td style={{ textAlign: "right" }}>${Number(line.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td style={{ textAlign: "right", color: line.discount > 0 ? "var(--status-healthy)" : "var(--text-muted)" }}>
+                            {line.discount > 0 ? `-$${Number(line.discount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "$0.00"}
+                          </td>
+                          <td style={{ textAlign: "right", fontWeight: 700 }}>
+                            ${Number(line.line_total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td><strong>Invoice #{selectedInvoice.invoice_number}</strong></td>
+                        <td style={{ color: "var(--text-muted)" }}>—</td>
+                        <td style={{ textAlign: "center" }}>1</td>
+                        <td style={{ textAlign: "right" }}>${Number(selectedInvoice.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td style={{ textAlign: "right" }}>$0.00</td>
+                        <td style={{ textAlign: "right", fontWeight: 700 }}>${Number(selectedInvoice.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Totals Summary */}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1.5rem" }}>
+              <div style={{ width: "260px", display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.88rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-secondary)" }}>
+                  <span>Subtotal:</span>
+                  <span>${Number(selectedInvoice.subtotal || selectedInvoice.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                {selectedInvoice.discount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "var(--status-healthy)" }}>
+                    <span>Discount:</span>
+                    <span>-${Number(selectedInvoice.discount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                {selectedInvoice.tax > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-secondary)" }}>
+                    <span>Tax:</span>
+                    <span>${Number(selectedInvoice.tax).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--border-subtle)", paddingTop: "0.5rem", fontSize: "1.1rem", fontWeight: 800, color: "var(--text-primary)" }}>
+                  <span>Total Due:</span>
+                  <span>${Number(selectedInvoice.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {selectedInvoice.currency || "USD"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment status banner */}
+            <div style={{ padding: "0.85rem 1rem", borderRadius: "var(--radius-sm)", marginBottom: "1.5rem", background: selectedInvoice.status === "PAID" ? "rgba(16, 185, 129, 0.08)" : "rgba(245, 158, 11, 0.08)", border: `1px solid ${selectedInvoice.status === "PAID" ? "rgba(16, 185, 129, 0.3)" : "rgba(245, 158, 11, 0.3)"}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                {selectedInvoice.status === "PAID" ? <CheckCircle2 size={16} color="var(--status-healthy)" /> : <Clock size={16} color="var(--status-medium)" />}
+                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: selectedInvoice.status === "PAID" ? "var(--status-healthy)" : "var(--status-medium)" }}>
+                  {selectedInvoice.status === "PAID" ? "Paid in full" : `Payment Outstanding (Due: ${selectedInvoice.due_date ? new Date(selectedInvoice.due_date).toLocaleDateString() : "Upon Receipt"})`}
+                </span>
+              </div>
+              {selectedInvoice.payments && selectedInvoice.payments.length > 0 && (
+                <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontFamily: "monospace" }}>
+                  {selectedInvoice.payments[0].transaction_id}
+                </span>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", borderTop: "1px solid var(--border-subtle)", paddingTop: "1.25rem", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => handleDownloadPdf(selectedInvoice)}
+                disabled={actionLoadingId === `pdf-${selectedInvoice.id}`}
+              >
+                <Download size={14} /> Download PDF
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => handleDownloadXlsx(selectedInvoice)}
+                disabled={actionLoadingId === `xlsx-${selectedInvoice.id}`}
+              >
+                <FileSpreadsheet size={14} /> Download XLS
+              </button>
+              {selectedInvoice.status !== "PAID" && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => handlePayInvoice(selectedInvoice)}
+                  disabled={actionLoadingId === `pay-${selectedInvoice.id}`}
+                >
+                  <CreditCard size={14} /> Pay Invoice Now
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setSelectedInvoice(null)}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
