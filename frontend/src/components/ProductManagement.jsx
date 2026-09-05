@@ -30,6 +30,7 @@ export function ProductManagement({ user, onNotify }) {
     cost_price: "",
     allowed_discount_percent: 15.0,
     description: "",
+    fulfillment_type: "PHYSICAL",
     is_active: true,
     subscription_enabled: false,
     subscription_name: "",
@@ -70,6 +71,7 @@ export function ProductManagement({ user, onNotify }) {
       name: "",
       sku: "",
       category_id: categories[0]?.id || "",
+      fulfillment_type: "PHYSICAL",
       unit_price: "",
       cost_price: "",
       allowed_discount_percent: 15.0,
@@ -92,6 +94,7 @@ export function ProductManagement({ user, onNotify }) {
       name: prod.name,
       sku: prod.sku,
       category_id: prod.category_id || "",
+      fulfillment_type: prod.fulfillment_type || "PHYSICAL",
       unit_price: prod.unit_price,
       cost_price: prod.cost_price,
       allowed_discount_percent: prod.allowed_discount_percent,
@@ -206,6 +209,7 @@ export function ProductManagement({ user, onNotify }) {
                 <th>Product Name</th>
                 <th>SKU</th>
                 <th>Category</th>
+                <th>Type</th>
                 <th>Unit Price</th>
                 <th>Cost Price</th>
                 <th>Max Discount</th>
@@ -216,11 +220,11 @@ export function ProductManagement({ user, onNotify }) {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>Loading products...</td>
+                  <td colSpan={9} style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>Loading products...</td>
                 </tr>
               ) : filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>No products found.</td>
+                  <td colSpan={9} style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>No products found.</td>
                 </tr>
               ) : (
                 filteredProducts.map((p) => (
@@ -259,6 +263,21 @@ export function ProductManagement({ user, onNotify }) {
                       <span className="badge badge-neutral">
                         {p.category?.name || "Uncategorized"}
                       </span>
+                    </td>
+                    <td>
+                      {p.fulfillment_type === "DIGITAL" ? (
+                        <span style={{ fontSize: "0.75rem", fontWeight: 700, padding: "0.2rem 0.5rem", borderRadius: "999px", background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}>
+                          DIGITAL
+                        </span>
+                      ) : p.fulfillment_type === "SERVICE" ? (
+                        <span style={{ fontSize: "0.75rem", fontWeight: 700, padding: "0.2rem 0.5rem", borderRadius: "999px", background: "#ECFDF5", color: "#059669", border: "1px solid #A7F3D0" }}>
+                          SERVICE
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: "0.75rem", fontWeight: 700, padding: "0.2rem 0.5rem", borderRadius: "999px", background: "#EFF6FF", color: "#2563EB", border: "1px solid #BFDBFE" }}>
+                          PHYSICAL
+                        </span>
+                      )}
                     </td>
                     <td><strong>${p.unit_price.toFixed(2)}</strong></td>
                     <td style={{ color: "var(--text-secondary)" }}>${p.cost_price.toFixed(2)}</td>
@@ -302,7 +321,7 @@ export function ProductManagement({ user, onNotify }) {
       {/* Add / Edit Product Modal */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-card" style={{ maxWidth: "680px", width: "95%", maxHeight: "90vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
             <div className="card-header">
               <h2 className="card-title">
                 <Package size={20} color="var(--primary)" />
@@ -322,7 +341,7 @@ export function ProductManagement({ user, onNotify }) {
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
                 <div className="form-group">
                   <label className="form-label">SKU</label>
                   <input
@@ -346,6 +365,20 @@ export function ProductManagement({ user, onNotify }) {
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Fulfillment Type</label>
+                  <select
+                    className="form-select"
+                    value={formData.fulfillment_type}
+                    onChange={(e) => setFormData({ ...formData, fulfillment_type: e.target.value })}
+                    required
+                  >
+                    <option value="PHYSICAL">Physical Item (Hardware)</option>
+                    <option value="DIGITAL">Digital License (Software)</option>
+                    <option value="SERVICE">Service / Support SLA</option>
                   </select>
                 </div>
               </div>

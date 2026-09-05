@@ -16,7 +16,47 @@ export function OperationsFulfillment({ onNotify }) {
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [suggestion, setSuggestion] = useState(null);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+
+  async function handleGetSuggestion(orderId) {
+    setSuggestLoading(true);
+    try {
+      const res = await api.getFulfillmentSuggestion(orderId);
+      setSuggestion(res);
+      onNotify("Inventory suggestion generated from available warehouses", "info");
+    } catch (err) {
+      onNotify("Failed to get suggestions: " + err.message, "error");
+    } finally {
+      setSuggestLoading(false);
+    }
+  }
+
+  async function handleConfirmFulfillment(orderId) {
+    if (!suggestion || !suggestion.splits || suggestion.splits.length === 0) {
+      onNotify("No splits available to confirm", "warning");
+      return;
+    }
+    setConfirmLoading(true);
+    try {
+      await api.confirmFulfillment(orderId, {
+        splits: suggestion.splits.map((s) => ({
+          order_line_id: s.order_line_id,
+          warehouse_id: s.warehouse_id,
+          quantity: s.quantity,
+        })),
+      });
+      onNotify("Warehouse allocations confirmed successfully!", "success");
+      setSuggestion(null);
+      await loadOrders();
+      await loadOrderDetail(orderId);
+    } catch (err) {
+      onNotify("Failed to confirm fulfillment: " + err.message, "error");
+    } finally {
+      setConfirmLoading(false);
+    }
+  }
 
   async function handleActivateOrder(orderId) {
     setActionLoading(true);
@@ -52,6 +92,7 @@ export function OperationsFulfillment({ onNotify }) {
   }
 
   async function loadOrderDetail(id) {
+    setSuggestion(null);
     try {
       const ord = await api.getOrder(id);
       setSelectedOrder(ord);
@@ -165,84 +206,176 @@ export function OperationsFulfillment({ onNotify }) {
 
               {/* Items & Splits */}
               <div style={{ marginBottom: "1.5rem" }}>
-                <h4 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.6rem" }}>Ordered Items & Warehouse Splits</h4>
-                {(selectedOrder.lines || []).map((line) => (
-                  <div
-                    key={line.id}
-                    style={{
-                      padding: "0.85rem",
-                      background: "var(--bg-surface-elevated)",
-                      borderRadius: "var(--radius-md)",
-                      marginBottom: "0.75rem",
-                      border: "1px solid var(--border-subtle)",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                      <div>
-                        <strong>{line.product_name || `Product #${line.product_id}`}</strong>
-                        {line.product_sku && (
-                          <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginLeft: "0.5rem" }}>
-                            ({line.product_sku})
-                          </span>
-                        )}
-                        {line.subscription_enabled && (
-                          <div style={{ marginTop: "0.25rem" }}>
-                            <span
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
+                  <h4 style={{ fontSize: "0.95rem", fontWeight: 700, margin: 0 }}>Ordered Items & Warehouse Splits</h4>
+                  {(selectedOrder.lines || []).some((l) => (!l.fulfillment_type || l.fulfillment_type === "PHYSICAL") && (!l.fulfillment_splits || l.fulfillment_splits.length === 0)) && (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={suggestLoading}
+                      onClick={() => handleGetSuggestion(selectedOrder.id)}
+                    >
+                      <Layers size={13} /> {suggestLoading ? "Analyzing Inventory..." : "Suggest Warehouse Splits"}
+                    </button>
+                  )}
+                </div>
+
+                {(selectedOrder.lines || []).map((line) => {
+                  const isPhysical = !line.fulfillment_type || line.fulfillment_type === "PHYSICAL";
+                  const isDigital = line.fulfillment_type === "DIGITAL";
+                  const isService = line.fulfillment_type === "SERVICE";
+
+                  return (
+                    <div
+                      key={line.id}
+                      style={{
+                        padding: "0.85rem",
+                        background: "var(--bg-surface-elevated)",
+                        borderRadius: "var(--radius-md)",
+                        marginBottom: "0.75rem",
+                        border: "1px solid var(--border-subtle)",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            <strong>{line.product_name || `Product #${line.product_id}`}</strong>
+                            {line.product_sku && (
+                              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                                ({line.product_sku})
+                              </span>
+                            )}
+                            {isDigital && (
+                              <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "0.15rem 0.45rem", borderRadius: "999px", background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}>
+                                DIGITAL LICENSE
+                              </span>
+                            )}
+                            {isService && (
+                              <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "0.15rem 0.45rem", borderRadius: "999px", background: "#ECFDF5", color: "#059669", border: "1px solid #A7F3D0" }}>
+                                SERVICE ENTITLEMENT
+                              </span>
+                            )}
+                            {isPhysical && (
+                              <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "0.15rem 0.45rem", borderRadius: "999px", background: "#EFF6FF", color: "#2563EB", border: "1px solid #BFDBFE" }}>
+                                PHYSICAL HARDWARE
+                              </span>
+                            )}
+                          </div>
+
+                          {line.subscription_enabled && (
+                            <div style={{ marginTop: "0.25rem" }}>
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.25rem",
+                                  fontSize: "0.72rem",
+                                  fontWeight: 600,
+                                  padding: "0.15rem 0.45rem",
+                                  borderRadius: "4px",
+                                  backgroundColor: "#EFF6FF",
+                                  color: "#1D4ED8",
+                                  border: "1px solid #BFDBFE",
+                                }}
+                              >
+                                <Sparkles size={11} /> Entitlement: {line.subscription_name} (
+                                {line.duration_mode === "LIFETIME" ? "Lifetime" : `${line.validity_value || 1} ${line.validity_unit || "MONTHS"}`}
+                                )
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <span className="badge badge-neutral">Qty: {line.quantity}</span>
+                      </div>
+
+                      {/* Fulfillment Status / Splits */}
+                      {!isPhysical ? (
+                        <div style={{ fontSize: "0.8rem", color: "var(--status-healthy)", display: "flex", alignItems: "center", gap: "0.3rem", marginTop: "0.4rem" }}>
+                          <CheckCircle2 size={13} />
+                          Electronic delivery / license entitlement — no physical warehouse allocation required.
+                        </div>
+                      ) : line.fulfillment_splits && line.fulfillment_splits.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", marginTop: "0.5rem" }}>
+                          {line.fulfillment_splits.map((sp) => (
+                            <div
+                              key={sp.id}
                               style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.25rem",
-                                fontSize: "0.72rem",
-                                fontWeight: 600,
-                                padding: "0.15rem 0.45rem",
-                                borderRadius: "4px",
-                                backgroundColor: "#EFF6FF",
-                                color: "#1D4ED8",
-                                border: "1px solid #BFDBFE",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                fontSize: "0.8rem",
+                                padding: "0.35rem 0.6rem",
+                                background: "var(--bg-surface)",
+                                borderRadius: "var(--radius-xs)",
+                                border: "1px solid var(--border-subtle)",
                               }}
                             >
-                              <Sparkles size={11} /> Entitlement: {line.subscription_name} (
-                              {line.duration_mode === "LIFETIME" ? "Lifetime" : `${line.validity_value || 1} ${line.validity_unit || "MONTHS"}`}
-                              )
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <span className="badge badge-neutral">Qty: {line.quantity}</span>
+                              <span>
+                                <WarehouseIcon size={12} style={{ marginRight: "0.35rem", verticalAlign: "middle" }} />
+                                {sp.warehouse_name || `Warehouse #${sp.warehouse_id}`}
+                              </span>
+                              <span>
+                                <strong>{sp.quantity_allocated} units</strong> • <span className="badge badge-info" style={{ fontSize: "0.7rem" }}>{sp.status}</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>
+                          Pending warehouse allocation.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Suggestion Preview & Confirmation */}
+                {suggestion && (
+                  <div style={{ marginTop: "1rem", padding: "1rem", backgroundColor: "#F0FDF4", border: "1px solid #86EFAC", borderRadius: "8px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                      <strong style={{ fontSize: "0.9rem", color: "#166534", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                        <WarehouseIcon size={15} /> Suggested Warehouse Allocation
+                      </strong>
+                      <span className="badge badge-healthy">
+                        {suggestion.is_complete ? "Complete Stock Available" : "Partial / Backorder Required"}
+                      </span>
                     </div>
 
-                    {line.fulfillment_splits && line.fulfillment_splits.length > 0 ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", marginTop: "0.5rem" }}>
-                        {line.fulfillment_splits.map((sp) => (
-                          <div
-                            key={sp.id}
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              fontSize: "0.8rem",
-                              padding: "0.35rem 0.6rem",
-                              background: "var(--bg-surface)",
-                              borderRadius: "var(--radius-xs)",
-                              border: "1px solid var(--border-subtle)",
-                            }}
-                          >
-                            <span>
-                              <WarehouseIcon size={12} style={{ marginRight: "0.35rem", verticalAlign: "middle" }} />
-                              {sp.warehouse_name || `Warehouse #${sp.warehouse_id}`}
-                            </span>
-                            <span>
-                              <strong>{sp.quantity_allocated} units</strong> • <span className="badge badge-info" style={{ fontSize: "0.7rem" }}>{sp.status}</span>
-                            </span>
+                    {suggestion.splits && suggestion.splits.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", marginBottom: "0.75rem" }}>
+                        {suggestion.splits.map((s, idx) => (
+                          <div key={idx} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", background: "#FFFFFF", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid #DCFCE7" }}>
+                            <span>Warehouse #{s.warehouse_id} (Line #{s.order_line_id})</span>
+                            <strong>Allocate: {s.quantity} units</strong>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                        No inventory splits allocated yet.
+                      <div style={{ fontSize: "0.85rem", color: "#B91C1C", marginBottom: "0.75rem" }}>
+                        No warehouse has available stock for the requested physical quantities.
                       </div>
                     )}
+
+                    {suggestion.backorders && suggestion.backorders.length > 0 && (
+                      <div style={{ fontSize: "0.8rem", color: "#B45309", marginBottom: "0.75rem" }}>
+                        Backorder: {suggestion.backorders.map((b) => `${b.quantity_backordered} units of Product #${b.product_id}`).join(", ")}
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+                      <button className="btn btn-secondary btn-sm" onClick={() => setSuggestion(null)}>
+                        Cancel
+                      </button>
+                      {suggestion.splits && suggestion.splits.length > 0 && (
+                        <button
+                          className="btn btn-primary btn-sm"
+                          disabled={confirmLoading}
+                          onClick={() => handleConfirmFulfillment(selectedOrder.id)}
+                        >
+                          <CheckCircle2 size={13} /> {confirmLoading ? "Confirming..." : "Confirm Allocation"}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                ))}
+                )}
               </div>
 
               {/* Activated Subscriptions Card */}

@@ -10,6 +10,8 @@ import { QuotationWorkflow } from "./components/QuotationWorkflow";
 import { ApprovalQueue } from "./components/ApprovalQueue";
 import { OperationsFulfillment } from "./components/OperationsFulfillment";
 import { FinanceBilling } from "./components/FinanceBilling";
+import { WarehouseManagement } from "./components/WarehouseManagement";
+import { InventoryManagement } from "./components/InventoryManagement";
 import {
   Activity,
   MessageSquare,
@@ -24,6 +26,8 @@ import {
   Receipt,
   Truck,
   ShieldAlert,
+  Warehouse as WarehouseIcon,
+  Boxes,
 } from "lucide-react";
 
 const DEMO_PERSONAS = [
@@ -52,6 +56,8 @@ const ROLE_NAVIGATION = {
   SALES_MANAGER: [
     { id: "quotations", label: "Quotations", icon: FileText },
     { id: "products", label: "Products", icon: Package },
+    { id: "warehouses", label: "Warehouses", icon: WarehouseIcon },
+    { id: "inventory", label: "Inventory", icon: Boxes },
     { id: "customers", label: "Customers", icon: Users },
     { id: "negotiations", label: "Negotiations", icon: MessageSquare },
     { id: "approvals", label: "Approvals", icon: CheckCircle2 },
@@ -64,6 +70,8 @@ const ROLE_NAVIGATION = {
   ],
   OPERATIONS: [
     { id: "orders", label: "Orders & Fulfillment", icon: Truck },
+    { id: "warehouses", label: "Warehouses", icon: WarehouseIcon },
+    { id: "inventory", label: "Inventory", icon: Boxes },
   ],
   ADMIN: [
     { id: "deal-health", label: "Deal Health", icon: Activity },
@@ -71,6 +79,8 @@ const ROLE_NAVIGATION = {
     { id: "approvals", label: "Approvals", icon: CheckCircle2 },
     { id: "negotiations", label: "Negotiations", icon: MessageSquare },
     { id: "products", label: "Products", icon: Package },
+    { id: "warehouses", label: "Warehouses", icon: WarehouseIcon },
+    { id: "inventory", label: "Inventory", icon: Boxes },
     { id: "customers", label: "Customers", icon: Users },
     { id: "orders", label: "Fulfillment", icon: Truck },
     { id: "billing", label: "Billing", icon: Receipt },
@@ -84,6 +94,8 @@ const ROLE_ALLOWED_TABS = {
   SALES_MANAGER: [
     "quotations",
     "products",
+    "warehouses",
+    "inventory",
     "customers",
     "negotiations",
     "approvals",
@@ -91,13 +103,15 @@ const ROLE_ALLOWED_TABS = {
     "reports",
   ],
   FINANCE: ["billing", "approvals", "quotations"],
-  OPERATIONS: ["orders", "fulfillment"],
+  OPERATIONS: ["orders", "fulfillment", "warehouses", "inventory"],
   ADMIN: [
     "deal-health",
     "quotations",
     "approvals",
     "negotiations",
     "products",
+    "warehouses",
+    "inventory",
     "customers",
     "reports",
     "orders",
@@ -808,6 +822,12 @@ export default function App() {
                 )}
                 {(activeTab === "orders" || activeTab === "fulfillment") && (
                   <OperationsFulfillment onNotify={notify} />
+                )}
+                {activeTab === "warehouses" && (
+                  <WarehouseManagement user={currentUser} onNotify={notify} />
+                )}
+                {activeTab === "inventory" && (
+                  <InventoryManagement user={currentUser} onNotify={notify} />
                 )}
                 {activeTab === "billing" && (
                   <FinanceBilling onNotify={notify} />

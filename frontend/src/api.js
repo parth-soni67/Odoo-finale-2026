@@ -278,4 +278,69 @@ export const api = {
       body: JSON.stringify({ comments }),
     });
   },
+
+  // Warehouses
+  async getWarehouses() {
+    return request("/warehouses");
+  },
+
+  async getWarehouse(id) {
+    return request(`/warehouses/${id}`);
+  },
+
+  async createWarehouse(payload) {
+    return request("/warehouses", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateWarehouse(id, payload) {
+    return request(`/warehouses/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getWarehouseInventory(warehouseId) {
+    return request(`/warehouses/${warehouseId}/inventory`);
+  },
+
+  // Inventory
+  async getInventory(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return request(`/inventory${query ? `?${query}` : ""}`);
+  },
+
+  async getInventoryItem(id) {
+    return request(`/inventory/${id}`);
+  },
+
+  async addInventoryStock(payload) {
+    return request("/inventory/stock", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async restockInventory(inventoryId, payload) {
+    return request(`/inventory/restock?inventory_id=${inventoryId}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // Fulfillment Execution
+  async getFulfillmentSuggestion(orderId) {
+    return request(`/orders/${orderId}/fulfillment/suggest`, {
+      method: "POST",
+    });
+  },
+
+  async confirmFulfillment(orderId, allocations = null) {
+    return request(`/orders/${orderId}/fulfillment/confirm`, {
+      method: "POST",
+      body: allocations ? JSON.stringify({ allocations }) : JSON.stringify({}),
+    });
+  },
 };

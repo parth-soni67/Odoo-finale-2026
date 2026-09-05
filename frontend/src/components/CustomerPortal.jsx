@@ -45,12 +45,17 @@ function getCustomerOrderStatus(order) {
   if (!order) return "CONFIRMED";
   const status = (order.status || "").toUpperCase();
   const physicalLines = (order.lines || []).filter(
-    (l) => (l.line_type || "ONE_TIME").toUpperCase() === "ONE_TIME"
+    (l) => (l.line_type || "ONE_TIME").toUpperCase() === "ONE_TIME" &&
+           (l.fulfillment_type || "PHYSICAL").toUpperCase() === "PHYSICAL"
   );
   const totalPhysicalQty = physicalLines.reduce((sum, l) => sum + (l.quantity || 0), 0);
   const totalAllocatedQty = (order.lines || []).reduce((sum, l) => {
     return sum + (l.fulfillment_splits || []).reduce((sSum, sp) => sSum + (sp.quantity_allocated || 0), 0);
   }, 0);
+
+  if (totalPhysicalQty === 0) {
+    return status === "PENDING" ? "ACTIVE" : (status || "ACTIVE");
+  }
 
   if (status === "FULFILLED") return "FULFILLED";
   if (status === "CANCELLED") return "CANCELLED";
@@ -103,6 +108,13 @@ function getSplitStatusLabel(splitStatus) {
 }
 
 function getItemStatus(line, orderStatus) {
+  const ft = (line.fulfillment_type || "PHYSICAL").toUpperCase();
+  if (ft === "DIGITAL") {
+    return { label: "Digital Fulfillment", badge: "badge-healthy" };
+  }
+  if (ft === "SERVICE") {
+    return { label: "Service Active", badge: "badge-healthy" };
+  }
   const isRecurring = (line.line_type || "").toUpperCase() === "RECURRING";
   if (isRecurring) {
     return { label: "Active", badge: "badge-healthy" };
@@ -672,7 +684,10 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                   const currentStatus = getCustomerOrderStatus(selectedOrder);
                   const statusBadge = getStatusBadgeClass(currentStatus);
                   const lines = selectedOrder.lines || [];
-                  const physicalLines = lines.filter((l) => (l.line_type || "ONE_TIME").toUpperCase() === "ONE_TIME");
+                  const physicalLines = lines.filter(
+                    (l) => (l.line_type || "ONE_TIME").toUpperCase() === "ONE_TIME" &&
+                           (l.fulfillment_type || "PHYSICAL").toUpperCase() === "PHYSICAL"
+                  );
                   const totalPhysicalQty = physicalLines.reduce((sum, l) => sum + (l.quantity || 0), 0);
 
                   // Real splits aggregation
@@ -794,9 +809,13 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                         <h4 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.75rem", textTransform: "uppercase", letterSpacing: "0.03em" }}>
                           Warehouse Allocation
                         </h4>
-                        {allSplits.length === 0 ? (
+                        {totalPhysicalQty === 0 ? (
                           <div style={{ padding: "1rem", background: "var(--bg-surface-elevated)", borderRadius: "var(--radius-sm)", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-                            No warehouse allocations recorded yet.
+                            Digital fulfillment & service activation — Warehouse allocation not required.
+                          </div>
+                        ) : allSplits.length === 0 ? (
+                          <div style={{ padding: "1rem", background: "var(--bg-surface-elevated)", borderRadius: "var(--radius-sm)", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+                            Awaiting warehouse allocation.
                           </div>
                         ) : (
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.85rem", marginBottom: "1rem" }}>
@@ -826,25 +845,27 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                         )}
 
                         {/* Backorder */}
-                        <div
-                          style={{
-                            marginTop: "0.75rem",
-                            padding: "0.85rem 1rem",
-                            borderRadius: "var(--radius-md)",
-                            background: backorderedQty > 0 ? "var(--status-high-bg)" : "var(--bg-surface-elevated)",
-                            border: backorderedQty > 0 ? "1px solid var(--status-high-border)" : "1px solid var(--border-subtle)",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <span style={{ fontSize: "0.9rem", fontWeight: 600, color: backorderedQty > 0 ? "var(--status-high-text)" : "var(--text-secondary)" }}>
-                            Backorder
-                          </span>
-                          <span style={{ fontSize: "0.9rem", fontWeight: 700, color: backorderedQty > 0 ? "var(--status-high-text)" : "var(--status-healthy-text)" }}>
-                            {backorderedQty > 0 ? `${backorderedQty} units remaining` : "0 units remaining"}
-                          </span>
-                        </div>
+                        {totalPhysicalQty > 0 && (
+                          <div
+                            style={{
+                              marginTop: "0.75rem",
+                              padding: "0.85rem 1rem",
+                              borderRadius: "var(--radius-md)",
+                              background: backorderedQty > 0 ? "var(--status-high-bg)" : "var(--bg-surface-elevated)",
+                              border: backorderedQty > 0 ? "1px solid var(--status-high-border)" : "1px solid var(--border-subtle)",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                            }}
+                          >
+                            <span style={{ fontSize: "0.9rem", fontWeight: 600, color: backorderedQty > 0 ? "var(--status-high-text)" : "var(--text-secondary)" }}>
+                              Backorder
+                            </span>
+                            <span style={{ fontSize: "0.9rem", fontWeight: 700, color: backorderedQty > 0 ? "var(--status-high-text)" : "var(--status-healthy-text)" }}>
+                              {backorderedQty > 0 ? `${backorderedQty} units remaining` : "0 units remaining"}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Fulfillment Progress */}
