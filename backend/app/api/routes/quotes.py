@@ -11,10 +11,12 @@ from app.schemas.quote import (
     QuoteUpdate,
     QuoteResponse,
     QuoteRiskResponse,
+    QuoteRecommendationsResponse,
 )
 from app.schemas.approval import ApprovalResponse
 from app.services.quote_service import quote_service
 from app.services.approval_service import approval_service
+from app.services.recommendation_service import recommendation_service
 
 router = APIRouter(prefix="/quotes", tags=["quotes"])
 
@@ -75,6 +77,16 @@ def evaluate_quote_risk(
 ):
     """Triggers on-demand discount risk analysis and policy violation detection on a quote."""
     return quote_service.evaluate_risk(db=db, quote_id=quote_id, current_user=current_user)
+
+
+@router.get("/{quote_id}/recommendations", response_model=QuoteRecommendationsResponse)
+def get_quote_recommendations(
+    quote_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Generates rule-based, deterministic upsell and cross-sell recommendations with estimated margin impact."""
+    return recommendation_service.get_quote_recommendations(db=db, quote_id=quote_id)
 
 
 @router.get("/{quote_id}/approvals", response_model=List[ApprovalResponse])

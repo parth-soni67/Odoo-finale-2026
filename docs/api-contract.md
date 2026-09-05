@@ -196,10 +196,27 @@ Authorization: Bearer <JWT_ACCESS_TOKEN>
   - Request (optional): `{"comments": "Discount excessive for standard tier"}`
   - Response 200: Updated `ApprovalResponse`
 
-### 3.4 Recommendations & Advisory [PLANNED]
-- **`GET /api/quotes/{quote_id}/recommendations`** `[PLANNED / NOT IMPLEMENTED]`
-  - Access: `SALES_REP`, `SALES_MANAGER`
-  - Response 200: List of recommendations (`product_id`, `recommendation_type: "UPSELL"|"CROSS_SELL"`, `reason`, `score`)
+### 3.4 Recommendations & Advisory [IMPLEMENTED — PERSON 2]
+- **`GET /api/quotes/{quote_id}/recommendations`**
+  - Access: Authenticated (`SALES_REP`, `SALES_MANAGER`, `ADMIN`, etc.)
+  - Description: Generates rule-based, deterministic UPSELL and CROSS_SELL product recommendations with estimated margin impact.
+  - Response 200:
+    ```json
+    {
+      "quote_id": 101,
+      "recommendations": [
+        {
+          "product_id": 4,
+          "product_name": "24/7 Mission-Critical SLA Support (Monthly)",
+          "type": "CROSS_SELL",
+          "reason": "Protect operational continuity and uptime with 24/7 Mission-Critical SLA Support (Monthly)",
+          "suggested_quantity": 1,
+          "unit_price": 800.0,
+          "estimated_margin_impact": 600.0
+        }
+      ]
+    }
+    ```
 
 ### 3.5 Order Fulfillment & Warehousing [IMPLEMENTED - Person 3]
 - **`POST /api/orders`** `[IMPLEMENTED]`
