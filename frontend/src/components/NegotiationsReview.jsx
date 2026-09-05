@@ -149,7 +149,7 @@ export function NegotiationsReview({ onNotify }) {
                     <tr key={neg.id}>
                       <td><strong>#{neg.id}</strong></td>
                       <td><code>Quote #{neg.quote_id}</code></td>
-                      <td><strong>{neg.requested_change}</strong></td>
+                      <td><strong>{neg.requested_change === "overall_discount_percent" || neg.requested_change === "discount_percent" ? "Overall Quote Discount (%)" : (neg.requested_change === "quantity" ? "Order Quantity" : neg.requested_change)}</strong></td>
                       <td><code>{(() => {
                         const req = (neg.requested_change || "").toLowerCase();
                         const val = neg.previous_value;

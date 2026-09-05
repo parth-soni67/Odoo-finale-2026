@@ -14,6 +14,7 @@ from app.models.quote import Quote, QuoteStatus
 from app.models.negotiation import Negotiation, NegotiationStatus
 from app.models.user import User, Role
 from app.services.audit_service import audit_service
+from app.services.discount_service import discount_service
 
 
 class ApprovalService:
@@ -268,17 +269,7 @@ class ApprovalService:
                 if any(k in neg.requested_change.lower() for k in ("discount", "percent", "%")):
                     try:
                         new_pct = float(neg.proposed_value)
-                        total_sub = 0.0
-                        total_disc = 0.0
-                        for line in quote.lines:
-                            line.discount_percent = new_pct
-                            line.discount_amount = round(line.unit_price * line.quantity * (new_pct / 100.0), 2)
-                            line.line_total = round((line.unit_price * line.quantity) - line.discount_amount, 2)
-                            total_sub += (line.unit_price * line.quantity)
-                            total_disc += line.discount_amount
-                        quote.subtotal = round(total_sub, 2)
-                        quote.total_discount = round(total_disc, 2)
-                        quote.total_amount = round(total_sub - total_disc, 2)
+                        discount_service.allocate_quote_discount(db, quote, new_pct, allow_manager_override=True)
                     except Exception:
                         pass
 

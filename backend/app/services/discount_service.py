@@ -64,11 +64,13 @@ class DiscountService:
         return round(allowed_discount, 2)
 
     def calculate_quote_max_permissible_discount(
-        self, db: Session, quote: Quote
+        self, db: Session, quote: Quote, allow_manager_override: bool = False
     ) -> Dict[str, Any]:
         """Calculates the value-weighted maximum permissible discount for the entire quotation,
         enforcing product discount caps, category rules, customer tier, margin floor,
         and customer discount ceiling.
+        If allow_manager_override is True, customer tier/ceiling rules are bypassed in favor of
+        product safety limits and margin floor protection.
         """
         customer = quote.customer
         if not customer:
@@ -91,7 +93,10 @@ class DiscountService:
             total_gross += line_gross
 
             # 1. Line-level governance cap
-            gov_cap = self.get_effective_line_limit(db, customer, product, quantity)
+            if allow_manager_override:
+                gov_cap = float(product.allowed_discount_percent if product.allowed_discount_percent is not None else 100.0)
+            else:
+                gov_cap = self.get_effective_line_limit(db, customer, product, quantity)
 
             # 2. Margin floor cap (discounted unit price >= product cost price)
             if product.cost_price and float(product.cost_price) > 0 and unit_price > 0:
@@ -123,10 +128,13 @@ class DiscountService:
         else:
             weighted_max_percent = 0.0
 
-        cust_ceiling = float(customer.discount_ceiling if customer and customer.discount_ceiling is not None else 10.0)
-        # Apply customer overall discount ceiling constraint
-        quote_max_permissible = min(weighted_max_percent, cust_ceiling)
-        quote_max_permissible = round(quote_max_permissible, 2)
+        if allow_manager_override:
+            quote_max_permissible = round(weighted_max_percent, 2)
+            cust_ceiling = float(customer.discount_ceiling if customer and customer.discount_ceiling is not None else 100.0)
+        else:
+            cust_ceiling = float(customer.discount_ceiling if customer and customer.discount_ceiling is not None else 10.0)
+            quote_max_permissible = min(weighted_max_percent, cust_ceiling)
+            quote_max_permissible = round(quote_max_permissible, 2)
 
         return {
             "quote_subtotal": round(total_gross, 2),
@@ -135,6 +143,117 @@ class DiscountService:
             "customer_ceiling": cust_ceiling,
             "quote_max_permissible_discount": quote_max_permissible,
             "lines": line_details,
+        }
+
+    def allocate_quote_discount(
+        self, db: Session, quote: Quote, target_overall_percent: float, allow_manager_override: bool = False
+    ) -> Dict[str, Any]:
+        """Allocates a target overall quotation discount across individual lines while strictly
+        respecting each line's:
+        1. product.allowed_discount_percent
+        2. category-level and tier-level discount rules
+        3. customer.discount_ceiling
+        4. margin floor (cost price protection: discounted_unit_price >= cost_price)
+
+        Ensures sum(line discount amounts) / quote subtotal ≈ target_overall_percent within rounding tolerance.
+        Updates line.discount_percent, line.discount_amount, line.line_total, quote.subtotal,
+        quote.total_discount, and quote.total_amount.
+        """
+        gov = self.calculate_quote_max_permissible_discount(db, quote, allow_manager_override=allow_manager_override)
+        total_subtotal = gov["quote_subtotal"]
+        max_discount_value = gov["max_discount_value"]
+        lines_gov = {l["line_id"]: l for l in gov["lines"]}
+
+        if total_subtotal <= 0 or not quote.lines:
+            return gov
+
+        target_pct = max(0.0, float(target_overall_percent))
+        target_discount_val = round(total_subtotal * (target_pct / 100.0), 2)
+        target_discount_val = min(target_discount_val, max_discount_value)
+
+        # 1. Base allocation: assign min(target_pct, line_cap) to each line
+        base_line_data = {}
+        sum_base_discount = 0.0
+        headroom_dict = {}
+
+        for line in quote.lines:
+            l_info = lines_gov.get(line.id)
+            line_gross = round(float(line.unit_price) * int(line.quantity), 2)
+            if not l_info:
+                base_line_data[line.id] = {"pct": 0.0, "amount": 0.0, "gross": line_gross, "cap": 0.0}
+                continue
+
+            max_cap = float(l_info["line_max_allowed_discount"])
+            base_pct = min(target_pct, max_cap)
+            base_disc = round(line_gross * (base_pct / 100.0), 2)
+            base_line_data[line.id] = {"pct": base_pct, "amount": base_disc, "gross": line_gross, "cap": max_cap}
+            sum_base_discount += base_disc
+
+            # Remaining headroom beyond base discount
+            max_line_disc = round(line_gross * (max_cap / 100.0), 2)
+            line_headroom = max(0.0, max_line_disc - base_disc)
+            if line_headroom > 0:
+                headroom_dict[line.id] = line_headroom
+
+        # 2. Shortfall redistribution: if some lines were capped below target_pct, distribute shortfall to lines with headroom
+        shortfall = round(target_discount_val - sum_base_discount, 2)
+        total_headroom = round(sum(headroom_dict.values()), 2)
+
+        if shortfall > 0 and total_headroom > 0:
+            redistributed_sum = 0.0
+            for line in quote.lines:
+                if line.id not in headroom_dict:
+                    continue
+                h = headroom_dict[line.id]
+                extra = min(h, round(shortfall * (h / total_headroom), 2))
+                base_line_data[line.id]["amount"] = round(base_line_data[line.id]["amount"] + extra, 2)
+                redistributed_sum += extra
+
+        # 3. Fine-tune rounding difference on lines with remaining headroom
+        current_allocated = sum(d["amount"] for d in base_line_data.values())
+        rounding_diff = round(target_discount_val - current_allocated, 2)
+        if abs(rounding_diff) >= 0.01:
+            for line in sorted(quote.lines, key=lambda l: float(l.unit_price) * int(l.quantity), reverse=True):
+                data = base_line_data.get(line.id)
+                if not data:
+                    continue
+                max_line_disc = round(data["gross"] * (data["cap"] / 100.0), 2)
+                new_amount = round(data["amount"] + rounding_diff, 2)
+                if 0.0 <= new_amount <= max_line_disc:
+                    data["amount"] = new_amount
+                    break
+
+        # 4. Commit changes to quote line models
+        accum_subtotal = 0.0
+        accum_discount = 0.0
+
+        for line in quote.lines:
+            d = base_line_data.get(line.id)
+            if not d:
+                continue
+            line_gross = d["gross"]
+            line_disc = d["amount"]
+            line_pct = round((line_disc / line_gross) * 100.0, 2) if line_gross > 0 else 0.0
+            line_tot = round(line_gross - line_disc, 2)
+
+            line.discount_percent = line_pct
+            line.discount_amount = line_disc
+            line.line_total = line_tot
+
+            accum_subtotal += line_gross
+            accum_discount += line_disc
+
+        quote.subtotal = round(accum_subtotal, 2)
+        quote.total_discount = round(accum_discount, 2)
+        quote.total_amount = round(accum_subtotal - accum_discount, 2)
+
+        return {
+            "subtotal": quote.subtotal,
+            "total_discount": quote.total_discount,
+            "total_amount": quote.total_amount,
+            "effective_overall_discount_percent": round((accum_discount / accum_subtotal) * 100.0, 2) if accum_subtotal > 0 else 0.0,
+            "target_overall_discount_percent": target_pct,
+            "max_permissible_discount_percent": gov["quote_max_permissible_discount"],
         }
 
     def evaluate_quote_risk(self, db: Session, quote: Quote) -> Dict[str, Any]:

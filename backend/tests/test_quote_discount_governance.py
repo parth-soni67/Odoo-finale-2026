@@ -206,10 +206,15 @@ def test_approved_negotiation_updates_quote(client: TestClient, db_session: Sess
     mgr_headers = get_auth_headers(client, "salesmgr@dealflow360.internal")
     q = db_session.query(Quote).filter(Quote.quote_number == "Q-2026-001").first()
 
+    # Ensure customer tier and ceiling allow 14% for this test
+    q.customer.tier = CustomerTier.GROWTH
+    q.customer.discount_ceiling = 20.0
+    db_session.commit()
+
     neg = Negotiation(
         quote_id=q.id,
         customer_id=q.customer_id,
-        requested_change="discount_percent",
+        requested_change="overall_discount_percent",
         previous_value="5.0",
         proposed_value="14.0",
         status=NegotiationStatus.PENDING,
@@ -222,9 +227,17 @@ def test_approved_negotiation_updates_quote(client: TestClient, db_session: Sess
     assert resp.status_code == 200
 
     db_session.refresh(q)
-    # Check that quote lines now reflect 14.0%
-    for line in q.lines:
-        assert line.discount_percent == 14.0
+    # Check that quote total discount is updated and each line strictly respects its individual cap
+    assert q.total_discount > 0
+    line_hw = next(l for l in q.lines if "HW" in l.product.sku)
+    assert line_hw.discount_percent <= 15.0
+    line_supp = next(l for l in q.lines if "SUPP" in l.product.sku)
+    assert line_supp.discount_percent <= 20.0
+
+    # Overall quote discount matches 14%
+    actual_overall_pct = (q.total_discount / q.subtotal) * 100.0
+    assert abs(actual_overall_pct - 14.0) <= 0.1
+    assert q.total_amount == round(q.subtotal - q.total_discount, 2)
 
 
 def test_rejected_negotiation_leaves_original_terms(client: TestClient, db_session: Session):
@@ -402,3 +415,89 @@ def test_approval_state_synchronization_across_views(client: TestClient, db_sess
     # 5. Order Creation
     resp_ord = client.post("/api/orders", json={"quote_id": q.id, "customer_id": 1}, headers=rep_headers)
     assert resp_ord.status_code == 201
+
+
+def test_multi_product_overall_discount_line_allocation(db_session: Session, client: TestClient):
+    """Verifies that an overall quote discount is allocated across eligible lines respecting
+    individual product caps, category rules, customer ceiling, and margin floor without
+    simply applying the flat percent to every line.
+    """
+    cust = db_session.query(Customer).filter(Customer.company_name == "Acme Corp").first()
+    assert cust is not None
+    cust.tier = CustomerTier.GROWTH
+    cust.discount_ceiling = 25.0
+    db_session.commit()
+
+    # Product A: Hardware (max 15%, cost 800, unit 1000)
+    p_hw = Product(name="Alloc HW", sku="ALLOC-HW-1", unit_price=1000.0, cost_price=800.0, allowed_discount_percent=15.0)
+    # Product B: Software (max 10%, cost 1000, unit 5000)
+    p_sw = Product(name="Alloc SW", sku="ALLOC-SW-1", unit_price=5000.0, cost_price=1000.0, allowed_discount_percent=10.0)
+    # Product C: Service (max 20%, cost 1200, unit 2000)
+    p_srv = Product(name="Alloc SRV", sku="ALLOC-SRV-1", unit_price=2000.0, cost_price=1200.0, allowed_discount_percent=20.0)
+    db_session.add_all([p_hw, p_sw, p_srv])
+    db_session.flush()
+
+    quote = Quote(
+        quote_number="Q-ALLOC-TEST",
+        customer_id=cust.id,
+        created_by=2,
+        status=QuoteStatus.DRAFT,
+        subtotal=17000.0,
+        total_discount=0.0,
+        total_amount=17000.0,
+    )
+    db_session.add(quote)
+    db_session.flush()
+
+    l1 = QuoteLine(quote_id=quote.id, product_id=p_hw.id, quantity=10, unit_price=1000.0, discount_percent=0.0, line_total=10000.0)
+    l2 = QuoteLine(quote_id=quote.id, product_id=p_sw.id, quantity=1, unit_price=5000.0, discount_percent=0.0, line_total=5000.0)
+    l3 = QuoteLine(quote_id=quote.id, product_id=p_srv.id, quantity=1, unit_price=2000.0, discount_percent=0.0, line_total=2000.0)
+    db_session.add_all([l1, l2, l3])
+    db_session.commit()
+    db_session.refresh(quote)
+
+    # Customer requests 12% overall discount
+    cust_headers = get_auth_headers(client, "customer@acmecorp.com")
+    resp = client.post(
+        f"/api/portal/quotes/{quote.id}/negotiate",
+        json={"requested_change": "overall_discount_percent", "proposed_value": "12.0"},
+        headers=cust_headers,
+    )
+    assert resp.status_code in (200, 201)
+    data = resp.json()
+    assert data["status"] in ("ACCEPTED", "APPROVED")
+
+    db_session.refresh(quote)
+    # Hardware line cannot exceed 15%
+    line_hw = next(l for l in quote.lines if l.product_id == p_hw.id)
+    assert line_hw.discount_percent <= 15.0
+
+    # Software line cannot exceed 10%
+    line_sw = next(l for l in quote.lines if l.product_id == p_sw.id)
+    assert line_sw.discount_percent <= 10.0
+
+    # Service line cannot exceed 20%
+    line_srv = next(l for l in quote.lines if l.product_id == p_srv.id)
+    assert line_srv.discount_percent <= 20.0
+
+    # Overall discount must be approximately 12% within rounding tolerance
+    actual_overall_pct = (quote.total_discount / quote.subtotal) * 100.0
+    assert abs(actual_overall_pct - 12.0) <= 0.1
+    assert quote.total_amount == round(quote.subtotal - quote.total_discount, 2)
+
+
+def test_unsupported_negotiation_fields_rejection(client: TestClient):
+    """Verifies that payment_terms, payment_terms_scope, and total_amount return 400."""
+    cust_headers = get_auth_headers(client, "customer@acmecorp.com")
+
+    for bad_field in ["payment_terms", "payment_terms_scope", "total_amount"]:
+        resp = client.post(
+            "/api/portal/quotes/1/negotiate",
+            json={"requested_change": bad_field, "proposed_value": "1000"},
+            headers=cust_headers,
+        )
+        assert resp.status_code == 400
+        err = resp.json()["error"]
+        assert err["code"] == "INVALID_NEGOTIATION_FIELD"
+        assert "cannot be directly negotiated" in err["message"]
+

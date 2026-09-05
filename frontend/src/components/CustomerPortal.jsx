@@ -28,7 +28,11 @@ function formatNegotiationDisplay(neg) {
     return num.toString();
   }
 
-  const label = req === "discount_percent" ? "Discount" : req === "total_amount" ? "Target Price" : (req === "quantity" ? "Quantity" : neg.requested_change);
+  const label = (req === "overall_discount_percent" || req === "discount_percent" || req.includes("discount"))
+    ? "Overall Quote Discount"
+    : req === "quantity"
+    ? "Order Quantity"
+    : neg.requested_change;
   return {
     label,
     prev: fmt(neg.previous_value),
@@ -74,7 +78,7 @@ function getStatusBadgeClass(status) {
   }
 }
 
-function formatAsciiProgress(percent) {
+function _formatAsciiProgress(percent) {
   const totalBlocks = 15;
   const filled = Math.min(totalBlocks, Math.max(0, Math.round((percent / 100) * totalBlocks)));
   const empty = totalBlocks - filled;
@@ -133,7 +137,7 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
 
   // Negotiation Modal
   const [isNegModalOpen, setIsNegModalOpen] = useState(false);
-  const [requestedChange, setRequestedChange] = useState("discount_percent");
+  const [requestedChange, setRequestedChange] = useState("overall_discount_percent");
   const [proposedValue, setProposedValue] = useState("");
   const [negLoading, setNegLoading] = useState(false);
 
@@ -243,18 +247,25 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
 
   async function handleSubmitNegotiation(e) {
     e.preventDefault();
-    if (!proposedValue) {
-      onNotify("Please enter a proposed value", "error");
+    const val = proposedValue.trim();
+    if (!val) {
+      onNotify("Please enter a proposed discount percentage.", "error");
+      return;
+    }
+
+    const numVal = parseFloat(val);
+    if (isNaN(numVal) || numVal < 0 || numVal > 100) {
+      onNotify("Proposed discount must be a valid number between 0.0% and 100.0%.", "error");
       return;
     }
 
     setNegLoading(true);
     try {
       await api.submitNegotiation(selectedQuote.id, {
-        requested_change: requestedChange,
-        proposed_value: proposedValue,
+        requested_change: requestedChange || "overall_discount_percent",
+        proposed_value: val,
       });
-      onNotify("Negotiation request submitted to sales team!", "success");
+      onNotify("Discount proposal submitted successfully!", "success");
       setIsNegModalOpen(false);
       setProposedValue("");
       loadQuoteDetail(selectedQuote.id);
@@ -851,48 +862,110 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
       {/* Request Change Negotiation Modal */}
       {isNegModalOpen && (
         <div className="modal-overlay" onClick={() => setIsNegModalOpen(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="card-header">
-              <h2 className="card-title">
+          <div className="modal-card" style={{ maxWidth: "480px" }} onClick={(e) => e.stopPropagation()}>
+            <div className="card-header" style={{ marginBottom: "1rem" }}>
+              <h2 className="card-title" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <MessageSquare size={20} color="var(--primary)" /> Request Quote Adjustment
               </h2>
             </div>
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginBottom: "1rem" }}>
-              Submit a formal counter-proposal for Quote <strong>{selectedQuote?.quote_number}</strong>. This will be routed to your account manager for review.
-            </p>
+
+            {/* Quote details banner */}
+            <div style={{ padding: "0.75rem 1rem", background: "var(--bg-surface-elevated)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-sm)", marginBottom: "1.25rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.25rem", fontSize: "0.85rem" }}>
+                <span style={{ color: "var(--text-secondary)" }}>Quote:</span>
+                <strong style={{ color: "var(--text-primary)" }}>{selectedQuote?.quote_number}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem" }}>
+                <span style={{ color: "var(--text-secondary)" }}>Quote Subtotal:</span>
+                <strong>${Number(selectedQuote?.subtotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+              </div>
+            </div>
 
             <form onSubmit={handleSubmitNegotiation}>
-              <div className="form-group">
-                <label className="form-label">Requested Parameter</label>
+              <div className="form-group" style={{ marginBottom: "1rem" }}>
+                <label className="form-label" style={{ fontWeight: 600, fontSize: "0.85rem" }}>Requested Adjustment</label>
                 <select
                   className="form-select"
                   value={requestedChange}
                   onChange={(e) => setRequestedChange(e.target.value)}
+                  style={{ width: "100%", padding: "0.5rem 0.75rem" }}
                 >
-                  <option value="discount_percent">Discount Percentage (%)</option>
-                  <option value="quantity">Order Quantity (Units)</option>
+                  <option value="overall_discount_percent">Overall Quote Discount (%)</option>
                 </select>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">
-                  Proposed Value {requestedChange === "discount_percent" ? "(e.g., 12 for 12%)" : "(e.g., 15 units)"}
-                </label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder={requestedChange === "discount_percent" ? "12.0" : "15"}
-                  value={proposedValue}
-                  onChange={(e) => setProposedValue(e.target.value)}
-                  required
-                />
+              {/* Current vs Maximum stats grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1.25rem" }}>
+                <div style={{ padding: "0.6rem 0.75rem", background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-sm)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.15rem" }}>Current Overall Discount</div>
+                  <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                    {selectedQuote?.current_overall_discount_percent !== undefined
+                      ? `${selectedQuote.current_overall_discount_percent}%`
+                      : (selectedQuote?.subtotal > 0 ? `${((selectedQuote.total_discount / selectedQuote.subtotal) * 100).toFixed(1)}%` : "0.0%")}
+                  </div>
+                </div>
+
+                <div style={{ padding: "0.6rem 0.75rem", background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-sm)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.15rem" }}>Maximum Available Discount</div>
+                  <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--status-healthy)" }}>
+                    {selectedQuote?.max_permissible_discount_percent !== undefined
+                      ? `${selectedQuote.max_permissible_discount_percent}%`
+                      : `${profile?.discount_ceiling || 10.0}%`}
+                  </div>
+                </div>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1.5rem" }}>
+              {/* Requested Input */}
+              <div className="form-group" style={{ marginBottom: "1rem" }}>
+                <label className="form-label" style={{ fontWeight: 600, fontSize: "0.85rem" }}>
+                  Requested Overall Discount (%)
+                </label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    className="form-input"
+                    placeholder="e.g. 12"
+                    value={proposedValue}
+                    onChange={(e) => setProposedValue(e.target.value)}
+                    required
+                    style={{ width: "100%", paddingRight: "2rem" }}
+                  />
+                  <span style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontWeight: 600 }}>%</span>
+                </div>
+              </div>
+
+              {/* Expected Total live preview */}
+              {(() => {
+                const num = parseFloat(proposedValue);
+                if (!isNaN(num) && num >= 0 && num <= 100 && selectedQuote?.subtotal > 0) {
+                  const discAmt = selectedQuote.subtotal * (num / 100.0);
+                  const expTot = Math.max(0, selectedQuote.subtotal - discAmt);
+                  return (
+                    <div style={{ padding: "0.65rem 0.85rem", background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "var(--radius-sm)", marginBottom: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Expected Total Payable:</span>
+                      <strong style={{ fontSize: "1.05rem", color: "var(--status-healthy)" }}>
+                        ${expTot.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </strong>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Small explanation */}
+              <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", lineHeight: 1.45, marginBottom: "1.25rem" }}>
+                Your requested discount will be evaluated across all products in this quotation according to product, category, customer and margin rules.
+              </p>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
                 <button
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setIsNegModalOpen(false)}
+                  disabled={negLoading}
                 >
                   Cancel
                 </button>

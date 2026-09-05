@@ -88,6 +88,11 @@ class PortalService:
                 "resolved_at": neg.resolved_at.isoformat() if neg.resolved_at else None,
             })
 
+        current_disc_pct = round((quote.total_discount / quote.subtotal) * 100.0, 1) if quote.subtotal > 0 else 0.0
+        from app.services.discount_service import discount_service
+        gov = discount_service.calculate_quote_max_permissible_discount(db, quote)
+        max_permissible_pct = gov.get("quote_max_permissible_discount", 10.0)
+
         return {
             "id": quote.id,
             "quote_number": quote.quote_number,
@@ -97,6 +102,8 @@ class PortalService:
             "subtotal": quote.subtotal,
             "total_discount": quote.total_discount,
             "total_amount": quote.total_amount,
+            "current_overall_discount_percent": current_disc_pct,
+            "max_permissible_discount_percent": max_permissible_pct,
             "created_at": quote.created_at.isoformat() if quote.created_at else None,
             "updated_at": quote.updated_at.isoformat() if quote.updated_at else None,
             "lines": lines_data,

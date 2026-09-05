@@ -62,13 +62,24 @@ class NegotiationService:
                 },
             )
 
-        supported_fields = ("discount_percent", "discount", "discount %", "quantity", "qty")
+        supported_fields = (
+            "overall_discount_percent",
+            "discount_percent",
+            "discount",
+            "discount %",
+            "overall discount",
+            "overall quote discount",
+            "overall discount (%)",
+            "overall_discount",
+            "quantity",
+            "qty",
+        )
         if change_lower not in supported_fields:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "code": "INVALID_NEGOTIATION_FIELD",
-                    "message": f"{raw_change} cannot be directly negotiated. Request a supported commercial field such as discount_percent.",
+                    "message": f"{raw_change} cannot be directly negotiated. Request a supported commercial field such as Overall Quote Discount (%).",
                 },
             )
 
@@ -77,7 +88,7 @@ class NegotiationService:
         is_qty = any(k in change_lower for k in ("quantity", "qty"))
 
         if is_discount:
-            canonical_field = "discount_percent"
+            canonical_field = "overall_discount_percent" if "overall" in change_lower else "discount_percent"
             try:
                 proposed_val_float = float(neg_in.proposed_value)
             except (ValueError, TypeError):
@@ -167,19 +178,9 @@ class NegotiationService:
 
             old_amount = quote.total_amount
             old_discount = quote.total_discount
-            total_subtotal = 0.0
-            total_discount = 0.0
 
-            for line in quote.lines:
-                line.discount_percent = proposed_val_float
-                line.discount_amount = round(line.unit_price * line.quantity * (proposed_val_float / 100.0), 2)
-                line.line_total = round((line.unit_price * line.quantity) - line.discount_amount, 2)
-                total_subtotal += (line.unit_price * line.quantity)
-                total_discount += line.discount_amount
-
-            quote.subtotal = round(total_subtotal, 2)
-            quote.total_discount = round(total_discount, 2)
-            quote.total_amount = round(total_subtotal - total_discount, 2)
+            # Allocate target overall discount across lines respecting caps and margin floor
+            discount_service.allocate_quote_discount(db, quote, proposed_val_float)
 
             # Re-evaluate risk
             risk_eval = discount_service.evaluate_quote_risk(db, quote)
@@ -404,19 +405,7 @@ class NegotiationService:
             if any(k in negotiation.requested_change.lower() for k in ("discount", "percent", "%")):
                 try:
                     new_discount_pct = float(negotiation.proposed_value)
-                    total_subtotal = 0.0
-                    total_discount = 0.0
-
-                    for line in quote.lines:
-                        line.discount_percent = new_discount_pct
-                        line.discount_amount = round(line.unit_price * line.quantity * (new_discount_pct / 100.0), 2)
-                        line.line_total = round((line.unit_price * line.quantity) - line.discount_amount, 2)
-                        total_subtotal += (line.unit_price * line.quantity)
-                        total_discount += line.discount_amount
-
-                    quote.subtotal = round(total_subtotal, 2)
-                    quote.total_discount = round(total_discount, 2)
-                    quote.total_amount = round(total_subtotal - total_discount, 2)
+                    discount_service.allocate_quote_discount(db, quote, new_discount_pct, allow_manager_override=True)
                 except Exception:
                     pass
 

@@ -83,6 +83,9 @@ def seed_database(db: Session) -> None:
             customer = Customer(**c_data)
             db.add(customer)
             print(f"Created customer: {c_data['company_name']} ({c_data['tier'].value})")
+        else:
+            for k, v in c_data.items():
+                setattr(existing, k, v)
 
     db.commit()
 
