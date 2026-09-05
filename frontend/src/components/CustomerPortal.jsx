@@ -344,41 +344,185 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", borderBottom: "1px solid var(--border-subtle)", paddingBottom: "0.5rem", flexWrap: "wrap" }}>
-        <button
-          className={`nav-item ${activeTab === "quotes" ? "active" : ""}`}
-          onClick={() => handleTabSelect("quotes")}
-        >
-          <FileText size={16} /> My Quotes ({quotes.length})
-        </button>
-        <button
-          className={`nav-item ${activeTab === "orders" ? "active" : ""}`}
-          onClick={() => {
-            handleTabSelect("orders");
-            if (orders.length === 0 && !ordersLoading) {
-              loadOrders();
-            }
-          }}
-        >
-          <Package size={16} /> Orders & Fulfillment {orders.length > 0 ? `(${orders.length})` : ""}
-        </button>
-        <button
-          className={`nav-item ${activeTab === "billing" ? "active" : ""}`}
-          onClick={() => {
-            handleTabSelect("billing");
-            loadBillingData();
-          }}
-        >
-          <Receipt size={16} /> Billing & Invoices {portalInvoices.length > 0 ? `(${portalInvoices.length})` : ""}
-        </button>
-        <button
-          className={`nav-item ${activeTab === "profile" ? "active" : ""}`}
-          onClick={() => handleTabSelect("profile")}
-        >
-          <Building2 size={16} /> Company Account
-        </button>
-      </div>
+      {/* Tab: Customer Portal Dashboard (Route: /portal) */}
+      {activeTab === "portal" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          {/* KPI Cards Grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
+            <div className="card" style={{ padding: "1.25rem", cursor: "pointer" }} onClick={() => handleTabSelect("quotes")}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                <span style={{ fontSize: "0.82rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", letterSpacing: "0.04em" }}>
+                  Active Quotes
+                </span>
+                <FileText size={20} color="var(--primary)" />
+              </div>
+              <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--text-primary)" }}>
+                {quotes.length}
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "var(--primary)", marginTop: "0.5rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                View Quotes <ArrowRight size={13} />
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: "1.25rem", cursor: "pointer" }} onClick={() => handleTabSelect("orders")}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                <span style={{ fontSize: "0.82rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", letterSpacing: "0.04em" }}>
+                  Orders & Fulfillment
+                </span>
+                <Package size={20} color="var(--primary)" />
+              </div>
+              <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--text-primary)" }}>
+                {orders.length}
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "var(--primary)", marginTop: "0.5rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                Track Fulfillment <ArrowRight size={13} />
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: "1.25rem", cursor: "pointer" }} onClick={() => handleTabSelect("billing")}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                <span style={{ fontSize: "0.82rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", letterSpacing: "0.04em" }}>
+                  Active Subscriptions
+                </span>
+                <Sparkles size={20} color="var(--primary)" />
+              </div>
+              <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--text-primary)" }}>
+                {portalSubscriptions.length}
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "var(--primary)", marginTop: "0.5rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                Manage Subscriptions <ArrowRight size={13} />
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: "1.25rem", cursor: "pointer" }} onClick={() => handleTabSelect("billing")}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                <span style={{ fontSize: "0.82rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", letterSpacing: "0.04em" }}>
+                  Invoices & Statements
+                </span>
+                <Receipt size={20} color="var(--primary)" />
+              </div>
+              <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--text-primary)" }}>
+                {portalInvoices.length}
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "var(--primary)", marginTop: "0.5rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                View Invoices <ArrowRight size={13} />
+              </div>
+            </div>
+          </div>
+
+          {/* Recent Activity Panels */}
+          <div className="two-column-layout">
+            {/* Recent Quotations Quick View */}
+            <div className="card">
+              <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div className="card-title">
+                  <FileText size={18} /> Recent Quotations
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleTabSelect("quotes")}
+                >
+                  View All ({quotes.length})
+                </button>
+              </div>
+              {quotes.length === 0 ? (
+                <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>No active quotations.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                  {quotes.slice(0, 4).map((q) => (
+                    <div
+                      key={q.id}
+                      onClick={() => {
+                        loadQuoteDetail(q.id);
+                        handleTabSelect("quotes");
+                      }}
+                      style={{
+                        padding: "0.85rem 1rem",
+                        borderRadius: "var(--radius-md)",
+                        background: "var(--bg-surface)",
+                        border: "1px solid var(--border-subtle)",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{q.quote_number}</div>
+                        <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{q.item_count} items</div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <span className={`badge ${q.status === "APPROVED" || q.status === "ACCEPTED" ? "badge-healthy" : "badge-neutral"}`}>
+                          {q.status}
+                        </span>
+                        <div style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "0.88rem", marginTop: "0.2rem" }}>
+                          ${q.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Recent Orders Quick View */}
+            <div className="card">
+              <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div className="card-title">
+                  <Package size={18} /> Recent Orders & Fulfillment
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleTabSelect("orders")}
+                >
+                  View All ({orders.length})
+                </button>
+              </div>
+              {orders.length === 0 ? (
+                <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>No orders placed yet.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                  {orders.slice(0, 4).map((o) => {
+                    const st = getCustomerOrderStatus(o);
+                    return (
+                      <div
+                        key={o.id}
+                        onClick={() => {
+                          loadOrderDetail(o.id);
+                          handleTabSelect("orders");
+                        }}
+                        style={{
+                          padding: "0.85rem 1rem",
+                          borderRadius: "var(--radius-md)",
+                          background: "var(--bg-surface)",
+                          border: "1px solid var(--border-subtle)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{o.order_number || `ORD-${o.id}`}</div>
+                          <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{(o.lines || []).length} items</div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <span className={`badge ${getStatusBadgeClass(st)}`}>{st}</span>
+                          <div style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "0.88rem", marginTop: "0.2rem" }}>
+                            ${(o.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab: Quotes */}
       {activeTab === "quotes" && (

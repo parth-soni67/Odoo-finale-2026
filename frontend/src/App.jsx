@@ -12,25 +12,14 @@ import { OperationsFulfillment } from "./components/OperationsFulfillment";
 import { FinanceBilling } from "./components/FinanceBilling";
 import { WarehouseManagement } from "./components/WarehouseManagement";
 import { InventoryManagement } from "./components/InventoryManagement";
+import { RoleSidebar, NAVIGATION_BY_ROLE } from "./components/RoleSidebar";
 import {
   Activity,
-  MessageSquare,
-  Package,
-  Users,
-  BarChart3,
   Building2,
   LogOut,
   UserCheck,
-  FileText,
-  CheckCircle2,
-  Receipt,
-  Truck,
   ShieldAlert,
-  Warehouse as WarehouseIcon,
-  Boxes,
   Menu,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 
 const DEMO_PERSONAS = [
@@ -43,71 +32,27 @@ const DEMO_PERSONAS = [
 ];
 
 const ROLE_NAVIGATION = {
-  CUSTOMER: [
-    { id: "portal", label: "Customer Portal", icon: Building2 },
-    { id: "my-quotes", label: "My Quotes", icon: FileText },
-    { id: "orders", label: "Orders & Fulfillment", icon: Package },
-    { id: "billing", label: "Billing & Invoices", icon: Receipt },
-    { id: "company", label: "Company Account", icon: Users },
-  ],
-  SALES_REP: [
-    { id: "quotations", label: "Quotations", icon: FileText },
-    { id: "products", label: "Products", icon: Package },
-    { id: "customers", label: "Customers", icon: Users },
-    { id: "negotiations", label: "Negotiations", icon: MessageSquare },
-  ],
-  SALES_MANAGER: [
-    { id: "deal-health", label: "Dashboard / Deal Health", icon: Activity },
-    { id: "quotations", label: "Quotations", icon: FileText },
-    { id: "products", label: "Products", icon: Package },
-    { id: "customers", label: "Customers", icon: Users },
-    { id: "warehouses", label: "Warehouses", icon: WarehouseIcon },
-    { id: "inventory", label: "Inventory", icon: Boxes },
-    { id: "approvals", label: "Approvals", icon: CheckCircle2 },
-    { id: "orders", label: "Fulfillment", icon: Truck },
-    { id: "billing", label: "Billing & Invoices", icon: Receipt },
-    { id: "reports", label: "Reports", icon: BarChart3 },
-  ],
-  FINANCE: [
-    { id: "billing", label: "Billing & Invoices", icon: Receipt },
-    { id: "approvals", label: "Approvals", icon: CheckCircle2 },
-    { id: "quotations", label: "Quotations", icon: FileText },
-  ],
-  OPERATIONS: [
-    { id: "orders", label: "Orders & Fulfillment", icon: Truck },
-    { id: "warehouses", label: "Warehouses", icon: WarehouseIcon },
-    { id: "inventory", label: "Inventory", icon: Boxes },
-  ],
-  ADMIN: [
-    { id: "deal-health", label: "Dashboard / Deal Health", icon: Activity },
-    { id: "quotations", label: "Quotations", icon: FileText },
-    { id: "products", label: "Products", icon: Package },
-    { id: "customers", label: "Customers", icon: Users },
-    { id: "warehouses", label: "Warehouses", icon: WarehouseIcon },
-    { id: "inventory", label: "Inventory", icon: Boxes },
-    { id: "approvals", label: "Approvals", icon: CheckCircle2 },
-    { id: "orders", label: "Fulfillment", icon: Truck },
-    { id: "billing", label: "Billing & Invoices", icon: Receipt },
-    { id: "reports", label: "Reports", icon: BarChart3 },
-  ],
+  CUSTOMER: NAVIGATION_BY_ROLE.CUSTOMER.items,
+  SALES_REP: NAVIGATION_BY_ROLE.SALES_REP.items,
+  SALES_MANAGER: NAVIGATION_BY_ROLE.SALES_MANAGER.items,
+  FINANCE: NAVIGATION_BY_ROLE.FINANCE.items,
+  OPERATIONS: NAVIGATION_BY_ROLE.OPERATIONS.items,
+  ADMIN: NAVIGATION_BY_ROLE.ADMIN.items,
 };
 
 const ROLE_ALLOWED_TABS = {
-  CUSTOMER: ["portal", "my-quotes", "orders", "billing", "company", "account"],
+  CUSTOMER: ["portal", "my-quotes", "quotes", "orders", "billing", "company", "account"],
   SALES_REP: ["quotations", "products", "customers", "negotiations"],
   SALES_MANAGER: [
-    "deal-health",
     "quotations",
     "products",
     "customers",
+    "negotiations",
+    "approvals",
+    "deal-health",
+    "reports",
     "warehouses",
     "inventory",
-    "approvals",
-    "orders",
-    "fulfillment",
-    "billing",
-    "reports",
-    "negotiations",
   ],
   FINANCE: ["billing", "approvals", "quotations"],
   OPERATIONS: ["orders", "fulfillment", "warehouses", "inventory"],
@@ -117,13 +62,13 @@ const ROLE_ALLOWED_TABS = {
     "approvals",
     "negotiations",
     "products",
+    "customers",
     "warehouses",
     "inventory",
-    "customers",
-    "reports",
     "orders",
     "fulfillment",
     "billing",
+    "reports",
     "portal",
     "my-quotes",
     "company",
@@ -707,16 +652,19 @@ export default function App() {
             activeSubTab={
               activeTab === "my-quotes" || activeTab === "quotes"
                 ? "quotes"
-                : activeTab === "orders"
+                : activeTab === "orders" || activeTab === "fulfillment"
                 ? "orders"
                 : activeTab === "billing"
                 ? "billing"
                 : activeTab === "company" || activeTab === "account"
                 ? "profile"
-                : "quotes"
+                : activeTab === "portal"
+                ? "portal"
+                : "portal"
             }
             onTabChange={(subTab) => {
               const subTabToRoute = {
+                portal: "portal",
                 quotes: "my-quotes",
                 orders: "orders",
                 billing: "billing",
@@ -791,10 +739,10 @@ export default function App() {
         <div className="header-inner">
           {/* 1. Brand & Sidebar Toggle */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            {currentUser && currentUser.role !== "CUSTOMER" && !isShowingRegister && !isShowingLogin && (
+            {currentUser && !isShowingRegister && !isShowingLogin && (
               <button
                 type="button"
-                className="sidebar-toggle-btn"
+                className="sidebar-toggle-btn header-menu-toggle"
                 onClick={() => {
                   if (window.innerWidth <= 768) {
                     setMobileSidebarOpen(!mobileSidebarOpen);
@@ -803,6 +751,7 @@ export default function App() {
                   }
                 }}
                 title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                aria-label="Toggle Navigation Menu"
                 style={{ padding: "0.3rem 0.45rem", cursor: "pointer" }}
               >
                 <Menu size={16} />
@@ -827,33 +776,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* 2. Customer Navigation (Only for CUSTOMER role) */}
-          {currentUser && currentUser.role === "CUSTOMER" && !isShowingRegister && !isShowingLogin && (
-            <nav className="header-nav" aria-label="Main Navigation">
-              {roleNavItems.map((item) => {
-                const Icon = item.icon;
-                const isCustomerTab = currentUser.role === "CUSTOMER";
-                const isActive = activeTab === item.id || (isCustomerTab && (
-                  (item.id === "my-quotes" && activeTab === "quotes") ||
-                  (item.id === "company" && activeTab === "account") ||
-                  (item.id === "portal" && (activeTab === "portal" || !activeTab))
-                ));
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`nav-item ${isActive ? "active" : ""}`}
-                    onClick={() => navigateTo(item.id)}
-                  >
-                    <Icon size={15} style={{ flexShrink: 0 }} />
-                    <span className="nav-label">{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          )}
-
-          {/* 3. Demo Persona Switcher (ONLY when unauthenticated / DEMO MODE) */}
+          {/* 2. Demo Persona Switcher (ONLY when unauthenticated / DEMO MODE) */}
           {!currentUser && (
             <div className="header-personas">
               {/* Desktop Pills (wide screens) */}
@@ -893,7 +816,7 @@ export default function App() {
             </div>
           )}
 
-          {/* 4. Authenticated User Badge & Logout — NO DEMO PERSONA BUTTONS */}
+          {/* 3. Authenticated User Badge & Logout — NO DEMO PERSONA BUTTONS */}
           {currentUser && (
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginLeft: "auto" }}>
               <div className="header-auth">
@@ -919,53 +842,30 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content Area: Left Sidebar for Internal Users, Top Nav for Customers */}
-      {currentUser && currentUser.role !== "CUSTOMER" && !isShowingRegister && !isShowingLogin ? (
+      {/* Main Content Area: Unified Left Sidebar for ALL Authenticated Roles */}
+      {currentUser && !isShowingRegister && !isShowingLogin ? (
         <div className="internal-layout">
-          {/* Left Sidebar */}
-          <aside
-            className={`internal-sidebar ${sidebarCollapsed ? "collapsed" : ""} ${mobileSidebarOpen ? "mobile-open" : ""}`}
-            aria-label="Sidebar Navigation"
-          >
-            <div className="sidebar-header">
-              <span className="sidebar-role-label">{currentUser.role.replace("_", " ")} WORKSPACE</span>
-              <button
-                type="button"
-                className="sidebar-toggle-btn"
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-              >
-                {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-              </button>
-            </div>
-            <div className="sidebar-section-heading">MAIN MENU</div>
-            <nav className="sidebar-nav">
-              {roleNavItems.map((item) => {
-                const Icon = item.icon;
-                const isActive =
-                  activeTab === item.id ||
-                  (item.id === "warehouses" && activeTab.startsWith("warehouses/")) ||
-                  (item.id === "orders" && activeTab === "fulfillment");
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`sidebar-link ${isActive ? "active" : ""}`}
-                    onClick={() => {
-                      navigateTo(item.id);
-                      setMobileSidebarOpen(false);
-                    }}
-                    title={item.label}
-                  >
-                    <Icon size={17} className="sidebar-icon" />
-                    <span className="sidebar-text">{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          </aside>
+          {/* Mobile Overlay Backdrop */}
+          {mobileSidebarOpen && (
+            <div
+              className="sidebar-backdrop"
+              onClick={() => setMobileSidebarOpen(false)}
+              aria-hidden="true"
+            />
+          )}
 
-          {/* Internal Workspace Main Content */}
+          {/* Unified Role Sidebar */}
+          <RoleSidebar
+            role={currentUser.role}
+            activeTab={activeTab}
+            onNavigate={navigateTo}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+            mobileOpen={mobileSidebarOpen}
+            onCloseMobile={() => setMobileSidebarOpen(false)}
+          />
+
+          {/* Workspace Main Content */}
           <main className="internal-main">
             {renderMainBody()}
           </main>

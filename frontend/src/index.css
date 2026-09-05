@@ -783,73 +783,6 @@ body {
   .persona-dropdown-container {
     display: flex;
   }
-  .auth-role-full {
-    display: none;
-  }
-  .auth-role-compact {
-    display: inline;
-  }
-
-  /* Two-tier responsive layout where Main Navigation has its own dedicated full-width row */
-  .header-inner {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
-    grid-template-rows: auto auto;
-    grid-template-areas:
-      "brand personas auth logout"
-      "nav   nav      nav  nav";
-    row-gap: 0.45rem;
-    column-gap: 0.6rem;
-    padding: 0.45rem 0.85rem;
-    min-width: 0;
-    max-width: 100%;
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  .header-brand,
-  .brand {
-    grid-area: brand;
-    align-self: center;
-  }
-
-  .header-personas,
-  .persona-switcher-container {
-    grid-area: personas;
-    justify-self: end;
-    align-self: center;
-    margin-left: 0;
-  }
-
-  .header-auth,
-  .user-auth-actions {
-    grid-area: auth;
-    align-self: center;
-  }
-
-  .header-logout {
-    grid-area: logout;
-    align-self: center;
-  }
-
-  .header-nav,
-  .nav-links {
-    grid-area: nav;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    -webkit-overflow-scrolling: touch;
-    padding-top: 0.35rem;
-    border-top: 1px solid var(--border-subtle);
-    scrollbar-width: none;
-  }
-
-  .header-nav::-webkit-scrollbar,
-  .nav-links::-webkit-scrollbar {
-    display: none;
-  }
 
   .two-column-layout {
     grid-template-columns: 1fr;
@@ -887,14 +820,11 @@ body {
 /* Mobile: 600px and down (including 390x844) */
 @media (max-width: 600px) {
   .header-inner {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto auto;
-    grid-template-areas:
-      "brand    logout"
-      "personas auth"
-      "nav      nav";
-    row-gap: 0.4rem;
-    column-gap: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
     padding: 0.45rem 0.65rem;
     min-width: 0;
     max-width: 100%;
@@ -904,48 +834,26 @@ body {
 
   .header-brand,
   .brand {
-    grid-area: brand;
-    justify-self: start;
-    align-self: center;
+    font-size: 1rem;
   }
 
-  .header-logout {
-    grid-area: logout;
-    justify-self: end;
-    align-self: center;
-  }
-
-  .header-personas,
-  .persona-switcher-container {
-    grid-area: personas;
-    justify-self: start;
-    align-self: center;
+  .header-personas {
+    order: 3;
     width: 100%;
+    margin-top: 0.25rem;
   }
 
-  .persona-dropdown,
-  .persona-dropdown-container {
+  .persona-dropdown {
     width: 100%;
     display: flex;
     align-items: center;
     gap: 0.3rem;
   }
 
-  .persona-label-compact {
-    font-size: 0.68rem;
-  }
-
   .persona-select {
     max-width: 135px;
     padding: 0.2rem 0.35rem;
     font-size: 0.72rem;
-  }
-
-  .header-auth,
-  .user-auth-actions {
-    grid-area: auth;
-    justify-self: end;
-    align-self: center;
   }
 
   .auth-badge {
@@ -965,25 +873,6 @@ body {
   .logout-text {
     display: inline;
   }
-
-  .header-nav,
-  .nav-links {
-    grid-area: nav;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    -webkit-overflow-scrolling: touch;
-    padding-top: 0.25rem;
-    border-top: 1px solid var(--border-subtle);
-    scrollbar-width: none;
-  }
-
-  .header-nav::-webkit-scrollbar,
-  .nav-links::-webkit-scrollbar {
-    display: none;
-  }
 }
 
 /* ==========================================================================
@@ -996,6 +885,7 @@ body {
   max-width: 100vw;
   background-color: var(--bg-main);
   overflow-x: hidden;
+  position: relative;
 }
 
 .internal-sidebar {
@@ -1007,6 +897,9 @@ body {
   flex-direction: column;
   transition: width 0.2s ease, transform 0.2s ease;
   z-index: 40;
+  height: calc(100vh - 56px);
+  position: sticky;
+  top: 56px;
 }
 
 .internal-sidebar.collapsed {
@@ -1122,14 +1015,39 @@ body {
   max-width: 1440px;
 }
 
+.sidebar-backdrop {
+  display: none;
+}
+
 @media (max-width: 768px) {
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    top: 56px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(2px);
+    z-index: 39;
+  }
+
+  .desktop-only-toggle {
+    display: none !important;
+  }
+
   .internal-sidebar {
     position: fixed;
     top: 56px;
     bottom: 0;
     left: 0;
+    height: calc(100vh - 56px);
+    width: 250px;
+    max-width: 80vw;
+    background: var(--bg-surface);
     transform: translateX(-100%);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-xl);
+    z-index: 40;
   }
 
   .internal-sidebar.mobile-open {
@@ -1138,6 +1056,9 @@ body {
 
   .internal-main {
     padding: 1rem 0.75rem;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 }
 
