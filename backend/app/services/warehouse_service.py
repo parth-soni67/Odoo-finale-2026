@@ -121,6 +121,109 @@ class WarehouseService:
         db.commit()
         return wh
 
+    def activate_warehouse(self, db: Session, warehouse_id: int, user_id: Optional[int] = None) -> Warehouse:
+        wh = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+        if not wh:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "WAREHOUSE_NOT_FOUND", "message": f"Warehouse {warehouse_id} not found"},
+            )
+        old_val = wh.is_active
+        wh.is_active = True
+        wh.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(wh)
+
+        audit = AuditLog(
+            user_id=user_id,
+            entity_type="WAREHOUSE",
+            entity_id=wh.id,
+            action="WAREHOUSE_ACTIVATED",
+            old_value=json.dumps({"is_active": old_val}),
+            new_value=json.dumps({"is_active": True}),
+        )
+        db.add(audit)
+        db.commit()
+        return wh
+
+    def deactivate_warehouse(self, db: Session, warehouse_id: int, user_id: Optional[int] = None) -> Warehouse:
+        wh = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+        if not wh:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "WAREHOUSE_NOT_FOUND", "message": f"Warehouse {warehouse_id} not found"},
+            )
+        old_val = wh.is_active
+        wh.is_active = False
+        wh.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(wh)
+
+        audit = AuditLog(
+            user_id=user_id,
+            entity_type="WAREHOUSE",
+            entity_id=wh.id,
+            action="WAREHOUSE_DEACTIVATED",
+            old_value=json.dumps({"is_active": old_val}),
+            new_value=json.dumps({"is_active": False}),
+        )
+        db.add(audit)
+        db.commit()
+        return wh
+
+    def delete_warehouse(self, db: Session, warehouse_id: int, user_id: Optional[int] = None) -> Dict[str, Any]:
+        wh = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+        if not wh:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "WAREHOUSE_NOT_FOUND", "message": f"Warehouse {warehouse_id} not found"},
+            )
+
+        # Check if warehouse has active stock
+        total_stock = sum(
+            (inv.quantity_available or 0) + (inv.quantity_allocated or 0) for inv in wh.inventory_items
+        )
+        if total_stock > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "CANNOT_DELETE_WAREHOUSE",
+                    "message": f"Cannot delete warehouse '{wh.name}' with existing inventory stock ({total_stock} units).",
+                },
+            )
+
+        # Check if warehouse is referenced in fulfillment splits
+        from app.models.order import FulfillmentSplit
+        split_count = db.query(FulfillmentSplit).filter(FulfillmentSplit.warehouse_id == warehouse_id).count()
+        if split_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "CANNOT_DELETE_WAREHOUSE",
+                    "message": f"Cannot delete warehouse '{wh.name}' referenced in {split_count} fulfillment splits.",
+                },
+            )
+
+        # Clean up 0-quantity inventory rows if any
+        for inv in wh.inventory_items:
+            db.delete(inv)
+
+        wh_name = wh.name
+        db.delete(wh)
+        db.commit()
+
+        audit = AuditLog(
+            user_id=user_id,
+            entity_type="WAREHOUSE",
+            entity_id=warehouse_id,
+            action="WAREHOUSE_DELETED",
+            old_value=json.dumps({"name": wh_name}),
+            new_value=None,
+        )
+        db.add(audit)
+        db.commit()
+        return {"message": f"Warehouse '{wh_name}' deleted successfully", "id": warehouse_id}
+
 
 class InventoryService:
     def _compute_stock_status(self, fulfillment_type: str, qty_available: int) -> str:
@@ -346,6 +449,270 @@ class InventoryService:
         db.commit()
 
         return self.get_inventory(db, inv.id)
+
+    def restock_by_product(
+        self,
+        db: Session,
+        warehouse_id: int,
+        product_id: int,
+        quantity: int,
+        reason: Optional[str] = "Restock",
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        if quantity <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "INVALID_QUANTITY", "message": "Restock quantity must be greater than zero"},
+            )
+
+        wh = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+        if not wh:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "WAREHOUSE_NOT_FOUND", "message": f"Warehouse {warehouse_id} not found"},
+            )
+        if not wh.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "WAREHOUSE_INACTIVE", "message": f"Cannot restock inactive warehouse '{wh.name}'"},
+            )
+
+        prod = db.query(Product).filter(Product.id == product_id).first()
+        if not prod:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "PRODUCT_NOT_FOUND", "message": f"Product {product_id} not found"},
+            )
+        if not prod.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "PRODUCT_INACTIVE", "message": f"Cannot restock inactive product '{prod.name}'"},
+            )
+
+        inv = (
+            db.query(Inventory)
+            .filter(Inventory.warehouse_id == warehouse_id, Inventory.product_id == product_id)
+            .first()
+        )
+
+        now_utc = datetime.now(timezone.utc)
+        if inv:
+            current_on_hand = inv.quantity_on_hand if inv.quantity_on_hand is not None else inv.quantity_available
+            current_avail = inv.quantity_available
+            inv.quantity_on_hand = current_on_hand + quantity
+            inv.quantity_available = current_avail + quantity
+            inv.updated_at = now_utc
+            action = "INVENTORY_RESTOCKED"
+            old_val = {"available": current_avail, "on_hand": current_on_hand}
+        else:
+            inv = Inventory(
+                warehouse_id=warehouse_id,
+                product_id=product_id,
+                quantity_on_hand=quantity,
+                quantity_available=quantity,
+                quantity_allocated=0,
+                updated_at=now_utc,
+            )
+            db.add(inv)
+            action = "INVENTORY_STOCK_ADDED"
+            old_val = None
+
+        db.commit()
+        db.refresh(inv)
+
+        audit = AuditLog(
+            user_id=user_id,
+            entity_type="INVENTORY",
+            entity_id=inv.id,
+            action=action,
+            old_value=json.dumps(old_val) if old_val else None,
+            new_value=json.dumps({
+                "warehouse_id": warehouse_id,
+                "warehouse_name": wh.name,
+                "product_id": product_id,
+                "product_name": prod.name,
+                "quantity_added": quantity,
+                "new_available": inv.quantity_available,
+                "new_on_hand": inv.quantity_on_hand,
+                "reason": reason or "Restock",
+            }),
+        )
+        db.add(audit)
+        db.commit()
+
+        return self.get_inventory(db, inv.id)
+
+    def adjust_inventory(
+        self,
+        db: Session,
+        warehouse_id: int,
+        product_id: int,
+        quantity_available: Optional[int] = None,
+        quantity_on_hand: Optional[int] = None,
+        reason: Optional[str] = "Inventory Adjustment",
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        inv = (
+            db.query(Inventory)
+            .filter(Inventory.warehouse_id == warehouse_id, Inventory.product_id == product_id)
+            .first()
+        )
+        if not inv:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "INVENTORY_NOT_FOUND", "message": f"Inventory for product {product_id} in warehouse {warehouse_id} not found"},
+            )
+
+        old_val = {
+            "available": inv.quantity_available,
+            "on_hand": inv.quantity_on_hand,
+            "allocated": inv.quantity_allocated,
+        }
+
+        if quantity_available is not None:
+            if quantity_available < 0:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"code": "INVALID_QUANTITY", "message": "Available stock cannot be negative"})
+            inv.quantity_available = quantity_available
+
+        if quantity_on_hand is not None:
+            if quantity_on_hand < 0:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"code": "INVALID_QUANTITY", "message": "On-hand stock cannot be negative"})
+            inv.quantity_on_hand = quantity_on_hand
+
+        inv.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(inv)
+
+        audit = AuditLog(
+            user_id=user_id,
+            entity_type="INVENTORY",
+            entity_id=inv.id,
+            action="INVENTORY_ADJUSTED",
+            old_value=json.dumps(old_val),
+            new_value=json.dumps({
+                "available": inv.quantity_available,
+                "on_hand": inv.quantity_on_hand,
+                "reason": reason or "Adjustment",
+            }),
+        )
+        db.add(audit)
+        db.commit()
+        return self.get_inventory(db, inv.id)
+
+    def get_warehouse_inventory_summary(self, db: Session, warehouse_id: int) -> Dict[str, Any]:
+        wh = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+        if not wh:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "WAREHOUSE_NOT_FOUND", "message": f"Warehouse {warehouse_id} not found"},
+            )
+
+        inventories = (
+            db.query(Inventory)
+            .options(
+                joinedload(Inventory.product).joinedload(Product.category),
+            )
+            .filter(Inventory.warehouse_id == warehouse_id)
+            .order_by(Inventory.id.asc())
+            .all()
+        )
+
+        # Group by category
+        categories_map: Dict[Any, Dict[str, Any]] = {}
+
+        total_warehouse_units = 0
+        low_stock_count = 0
+
+        for inv in inventories:
+            prod = inv.product
+            if not prod:
+                continue
+
+            cat = prod.category
+            cat_id = cat.id if cat else None
+            cat_name = cat.name if cat else "Uncategorized"
+
+            if cat_id not in categories_map:
+                categories_map[cat_id] = {
+                    "category_id": cat_id,
+                    "category_name": cat_name,
+                    "total_units": 0,
+                    "products": [],
+                }
+
+            ft = getattr(prod, "fulfillment_type", "PHYSICAL")
+            status_str = self._compute_stock_status(ft, inv.quantity_available)
+
+            if 0 < inv.quantity_available < 10 and ft != "SERVICE":
+                low_stock_count += 1
+
+            # Only count actual available inventory towards category totals
+            categories_map[cat_id]["total_units"] += inv.quantity_available
+            total_warehouse_units += inv.quantity_available
+
+            categories_map[cat_id]["products"].append({
+                "product_id": prod.id,
+                "product_name": prod.name,
+                "sku": prod.sku,
+                "fulfillment_type": ft,
+                "quantity_available": inv.quantity_available,
+                "quantity_reserved": inv.quantity_allocated or 0,
+                "status": status_str,
+            })
+
+        categories_list = list(categories_map.values())
+        # Sort categories by name
+        categories_list.sort(key=lambda c: c["category_name"])
+
+        return {
+            "warehouse_id": wh.id,
+            "warehouse_name": wh.name,
+            "location": wh.location,
+            "status": "ACTIVE" if wh.is_active else "INACTIVE",
+            "total_units": total_warehouse_units,
+            "total_products": len(inventories),
+            "total_categories": len(categories_list),
+            "low_stock_items": low_stock_count,
+            "categories": categories_list,
+        }
+
+    def list_low_stock(self, db: Session, warehouse_id: Optional[int] = None, threshold: int = 10) -> List[Dict[str, Any]]:
+        query = (
+            db.query(Inventory)
+            .options(
+                joinedload(Inventory.warehouse),
+                joinedload(Inventory.product).joinedload(Product.category),
+            )
+            .filter(Inventory.quantity_available < threshold)
+        )
+        if warehouse_id is not None:
+            query = query.filter(Inventory.warehouse_id == warehouse_id)
+
+        items = query.order_by(Inventory.quantity_available.asc()).all()
+        results = []
+        for inv in items:
+            prod = inv.product
+            wh = inv.warehouse
+            cat = prod.category if prod else None
+            ft = getattr(prod, "fulfillment_type", "PHYSICAL") if prod else "PHYSICAL"
+            if ft == "SERVICE":
+                continue # Services don't trigger physical low-stock alerts
+            results.append({
+                "id": inv.id,
+                "warehouse_id": inv.warehouse_id,
+                "warehouse_name": wh.name if wh else None,
+                "product_id": inv.product_id,
+                "product_name": prod.name if prod else None,
+                "product_sku": prod.sku if prod else None,
+                "category_name": cat.name if cat else "Uncategorized",
+                "fulfillment_type": ft,
+                "quantity_available": inv.quantity_available,
+                "quantity_on_hand": inv.quantity_on_hand or inv.quantity_available,
+                "quantity_allocated": inv.quantity_allocated or 0,
+                "stock_status": self._compute_stock_status(ft, inv.quantity_available),
+                "updated_at": inv.updated_at,
+            })
+        return results
 
 
 warehouse_service = WarehouseService()

@@ -29,6 +29,17 @@ def list_inventory(
     )
 
 
+@router.get("/low-stock", response_model=List[InventoryResponse])
+def get_low_stock_inventory(
+    warehouse_id: Optional[int] = Query(None, description="Filter by warehouse ID"),
+    threshold: int = Query(10, description="Low stock threshold"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.ADMIN, Role.SALES_MANAGER, Role.OPERATIONS)),
+):
+    """List low-stock and out-of-stock items across warehouses."""
+    return inventory_service.list_low_stock(db=db, warehouse_id=warehouse_id, threshold=threshold)
+
+
 @router.get("/{inventory_id}", response_model=InventoryResponse)
 def get_inventory(
     inventory_id: int,
