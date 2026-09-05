@@ -12,8 +12,8 @@ class OrderService:
         if not quote:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "NOT_FOUND", "message": "Quote not found"})
         
-        if quote.status != QuoteStatus.APPROVED:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"code": "INVALID_STATE", "message": "Quote must be APPROVED to create an order"})
+        if quote.status not in (QuoteStatus.APPROVED, QuoteStatus.ACCEPTED):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"code": "INVALID_STATE", "message": "Quote must be APPROVED or ACCEPTED to create an order"})
             
         # check if order already exists
         existing_order = db.query(Order).filter(Order.quote_id == quote_id).first()
