@@ -17,13 +17,25 @@ from app.api.routes.negotiations import router as negotiations_router
 from app.api.routes.deal_health import router as deal_health_router
 from app.api.routes.reports import router as reports_router
 
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from app.core.database import Base, engine
+    import app.models  # noqa: F401
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     description="DealFlow360 — Intelligent, Self-Governing Sales Operations Platform API",
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     docs_url=f"{settings.API_V1_PREFIX}/docs",
-    redoc_url=f"{settings.API_V1_PREFIX}/redoc"
+    redoc_url=f"{settings.API_V1_PREFIX}/redoc",
+    lifespan=lifespan,
 )
 
 # CORS configuration

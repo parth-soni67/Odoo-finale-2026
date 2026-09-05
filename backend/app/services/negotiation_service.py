@@ -175,6 +175,30 @@ class NegotiationService:
             quote.requires_approval = True
             quote.risk_score = max(quote.risk_score, 45.0)
 
+            # Ensure an active Approval record exists in PENDING state for reviewer
+            from app.models.approval import Approval, ApprovalType, ApprovalStatus
+            mgr_app = (
+                db.query(Approval)
+                .filter(
+                    Approval.quote_id == quote.id,
+                    Approval.approval_type == ApprovalType.MANAGER,
+                )
+                .first()
+            )
+            if mgr_app:
+                mgr_app.status = ApprovalStatus.PENDING
+                mgr_app.comments = None
+                mgr_app.resolved_at = None
+                mgr_app.reason = f"Re-approval required: Negotiation #{negotiation.id} approved ({negotiation.requested_change} -> {negotiation.proposed_value})"
+            else:
+                mgr_app = Approval(
+                    quote_id=quote.id,
+                    approval_type=ApprovalType.MANAGER,
+                    status=ApprovalStatus.PENDING,
+                    reason=f"Re-approval required: Negotiation #{negotiation.id} approved ({negotiation.requested_change} -> {negotiation.proposed_value})",
+                )
+                db.add(mgr_app)
+
             # Audit quote change
             quote_audit = AuditLog(
                 user_id=current_user.id,
