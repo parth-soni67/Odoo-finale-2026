@@ -28,6 +28,9 @@ import {
   ShieldAlert,
   Warehouse as WarehouseIcon,
   Boxes,
+  Menu,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 const DEMO_PERSONAS = [
@@ -54,14 +57,16 @@ const ROLE_NAVIGATION = {
     { id: "negotiations", label: "Negotiations", icon: MessageSquare },
   ],
   SALES_MANAGER: [
+    { id: "deal-health", label: "Dashboard / Deal Health", icon: Activity },
     { id: "quotations", label: "Quotations", icon: FileText },
     { id: "products", label: "Products", icon: Package },
+    { id: "customers", label: "Customers", icon: Users },
     { id: "warehouses", label: "Warehouses", icon: WarehouseIcon },
     { id: "inventory", label: "Inventory", icon: Boxes },
-    { id: "customers", label: "Customers", icon: Users },
-    { id: "negotiations", label: "Negotiations", icon: MessageSquare },
     { id: "approvals", label: "Approvals", icon: CheckCircle2 },
-    { id: "deal-health", label: "Deal Health", icon: Activity },
+    { id: "orders", label: "Fulfillment", icon: Truck },
+    { id: "billing", label: "Billing & Invoices", icon: Receipt },
+    { id: "reports", label: "Reports", icon: BarChart3 },
   ],
   FINANCE: [
     { id: "billing", label: "Billing & Invoices", icon: Receipt },
@@ -74,16 +79,15 @@ const ROLE_NAVIGATION = {
     { id: "inventory", label: "Inventory", icon: Boxes },
   ],
   ADMIN: [
-    { id: "deal-health", label: "Deal Health", icon: Activity },
+    { id: "deal-health", label: "Dashboard / Deal Health", icon: Activity },
     { id: "quotations", label: "Quotations", icon: FileText },
-    { id: "approvals", label: "Approvals", icon: CheckCircle2 },
-    { id: "negotiations", label: "Negotiations", icon: MessageSquare },
     { id: "products", label: "Products", icon: Package },
+    { id: "customers", label: "Customers", icon: Users },
     { id: "warehouses", label: "Warehouses", icon: WarehouseIcon },
     { id: "inventory", label: "Inventory", icon: Boxes },
-    { id: "customers", label: "Customers", icon: Users },
+    { id: "approvals", label: "Approvals", icon: CheckCircle2 },
     { id: "orders", label: "Fulfillment", icon: Truck },
-    { id: "billing", label: "Billing", icon: Receipt },
+    { id: "billing", label: "Billing & Invoices", icon: Receipt },
     { id: "reports", label: "Reports", icon: BarChart3 },
   ],
 };
@@ -92,15 +96,18 @@ const ROLE_ALLOWED_TABS = {
   CUSTOMER: ["portal", "my-quotes", "orders", "billing", "company", "account"],
   SALES_REP: ["quotations", "products", "customers", "negotiations"],
   SALES_MANAGER: [
+    "deal-health",
     "quotations",
     "products",
+    "customers",
     "warehouses",
     "inventory",
-    "customers",
-    "negotiations",
     "approvals",
-    "deal-health",
+    "orders",
+    "fulfillment",
+    "billing",
     "reports",
+    "negotiations",
   ],
   FINANCE: ["billing", "approvals", "quotations"],
   OPERATIONS: ["orders", "fulfillment", "warehouses", "inventory"],
@@ -154,6 +161,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("login");
   const [toasts, setToasts] = useState([]);
   const [authLoading, setAuthLoading] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Auth Mode: "login" or "signup"
   const [authMode, setAuthMode] = useState("login");
@@ -425,34 +434,363 @@ export default function App() {
 
   const roleNavItems = currentUser ? ROLE_NAVIGATION[currentUser.role] || [] : [];
   const allowedTabs = currentUser ? ROLE_ALLOWED_TABS[currentUser.role] || [] : [];
-  const isAuthorized = allowedTabs.includes(activeTab);
+  const baseRoute = activeTab.split("/")[0];
+  const isAuthorized = allowedTabs.includes(activeTab) || allowedTabs.includes(baseRoute);
+
+  function renderMainBody() {
+    if (isShowingRegister) {
+      return (
+        /* Create Account Page (Routes: /register, /signup) */
+        <div className="card" style={{ maxWidth: "440px", margin: "3.5rem auto", padding: "2.25rem 2rem" }}>
+          <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
+            <Building2 size={36} color="var(--primary)" style={{ margin: "0 auto 0.5rem auto" }} />
+            <h2 style={{ fontSize: "1.45rem", fontWeight: 800, color: "var(--text-primary)" }}>
+              Create your DealFlow360 account
+            </h2>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", marginTop: "0.35rem" }}>
+              Register for a customer account to track quotations, orders, and fulfillment.
+            </p>
+          </div>
+
+          <form onSubmit={handleSignupSubmit}>
+            <div className="form-group">
+              <label className="form-label">Full Name</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="e.g. Jane Doe"
+                value={signupFullName}
+                onChange={(e) => setSignupFullName(e.target.value)}
+                autoComplete="name"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Email Address</label>
+              <input
+                type="email"
+                className="form-input"
+                placeholder="name@company.com"
+                value={signupEmail}
+                onChange={(e) => setSignupEmail(e.target.value)}
+                autoComplete="email"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <input
+                type="password"
+                className="form-input"
+                placeholder="••••••••"
+                value={signupPassword}
+                onChange={(e) => setSignupPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Confirm Password</label>
+              <input
+                type="password"
+                className="form-input"
+                placeholder="••••••••"
+                value={signupConfirmPassword}
+                onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{ width: "100%", marginTop: "0.75rem" }}
+              disabled={authSubmitting}
+            >
+              {authSubmitting ? "Creating Account..." : "Create Account"}
+            </button>
+          </form>
+
+          <div
+            style={{
+              marginTop: "1.75rem",
+              paddingTop: "1.25rem",
+              borderTop: "1px solid var(--border-subtle)",
+              textAlign: "center",
+              fontSize: "0.9rem",
+              color: "var(--text-secondary)",
+            }}
+          >
+            Already have an account?{" "}
+            <a
+              href="/login"
+              onClick={(e) => {
+                e.preventDefault();
+                goToLogin();
+              }}
+              style={{
+                color: "var(--primary)",
+                fontWeight: 700,
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              Back to Login
+            </a>
+          </div>
+        </div>
+      );
+    }
+
+    if (!currentUser) {
+      return (
+        /* Sign In Page (Routes: /login, /) */
+        <div className="card" style={{ maxWidth: "440px", margin: "3.5rem auto", padding: "2.25rem 2rem" }}>
+          <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
+            <Activity size={36} color="var(--primary)" style={{ margin: "0 auto 0.5rem auto" }} />
+            <h2 style={{ fontSize: "1.45rem", fontWeight: 800, color: "var(--text-primary)" }}>
+              Sign In to DealFlow360
+            </h2>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", marginTop: "0.35rem" }}>
+              Enter your email and password to access your authorized workspace.
+            </p>
+          </div>
+
+          <form onSubmit={handleLoginSubmit}>
+            <div className="form-group">
+              <label className="form-label">Email Address</label>
+              <input
+                type="email"
+                className="form-input"
+                placeholder="name@company.com"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                autoComplete="email"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <input
+                type="password"
+                className="form-input"
+                placeholder="••••••••"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{ width: "100%", marginTop: "0.75rem" }}
+              disabled={authSubmitting}
+            >
+              {authSubmitting ? "Signing In..." : "Sign In"}
+            </button>
+          </form>
+
+          <div
+            style={{
+              marginTop: "1.75rem",
+              paddingTop: "1.25rem",
+              borderTop: "1px solid var(--border-subtle)",
+              textAlign: "center",
+              fontSize: "0.9rem",
+              color: "var(--text-secondary)",
+            }}
+          >
+            Don't have an account?{" "}
+            <a
+              href="/register"
+              onClick={(e) => {
+                e.preventDefault();
+                goToRegister();
+              }}
+              style={{
+                color: "var(--primary)",
+                fontWeight: 700,
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              Create Account
+            </a>
+          </div>
+        </div>
+      );
+    }
+
+    if (!isAuthorized) {
+      return (
+        /* Route Protection: Access Restricted View */
+        <div
+          className="card"
+          style={{
+            maxWidth: "560px",
+            margin: "4rem auto",
+            textAlign: "center",
+            padding: "3.5rem 2rem",
+          }}
+        >
+          <ShieldAlert size={52} color="var(--status-high)" style={{ marginBottom: "1rem" }} />
+          <h2
+            style={{
+              fontSize: "1.5rem",
+              fontWeight: 800,
+              marginBottom: "0.5rem",
+              color: "var(--text-primary)",
+            }}
+          >
+            Access Restricted
+          </h2>
+          <p
+            style={{
+              color: "var(--text-secondary)",
+              fontSize: "0.95rem",
+              marginBottom: "1.75rem",
+              lineHeight: 1.5,
+            }}
+          >
+            You don't have permission to access this page. Your role (<strong>{currentUser.role}</strong>) is not authorized for <code>/{activeTab}</code>.
+          </p>
+          <button
+            className="btn btn-primary"
+            onClick={() => navigateTo(ROLE_DEFAULT_TAB[currentUser.role] || "portal")}
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      /* Authorized Component Rendering */
+      <div>
+        {currentUser.role === "CUSTOMER" ? (
+          <CustomerPortal
+            user={currentUser}
+            onNotify={notify}
+            activeSubTab={
+              activeTab === "my-quotes" || activeTab === "quotes"
+                ? "quotes"
+                : activeTab === "orders"
+                ? "orders"
+                : activeTab === "billing"
+                ? "billing"
+                : activeTab === "company" || activeTab === "account"
+                ? "profile"
+                : "quotes"
+            }
+            onTabChange={(subTab) => {
+              const subTabToRoute = {
+                quotes: "my-quotes",
+                orders: "orders",
+                billing: "billing",
+                profile: "company",
+              };
+              navigateTo(subTabToRoute[subTab] || "portal");
+            }}
+          />
+        ) : (
+          <>
+            {activeTab === "portal" && (
+              <CustomerPortal user={currentUser} onNotify={notify} />
+            )}
+            {activeTab === "quotations" && (
+              <QuotationWorkflow
+                user={currentUser}
+                onNotify={notify}
+                onInspectDeal={() => navigateTo("deal-health")}
+              />
+            )}
+            {activeTab === "approvals" && (
+              <ApprovalQueue user={currentUser} onNotify={notify} />
+            )}
+            {activeTab === "deal-health" && (
+              <DealHealthDashboard
+                onInspectNegotiation={() => navigateTo("negotiations")}
+                onNotify={notify}
+              />
+            )}
+            {activeTab === "negotiations" && (
+              <NegotiationsReview onNotify={notify} />
+            )}
+            {activeTab === "products" && (
+              <ProductManagement user={currentUser} onNotify={notify} />
+            )}
+            {activeTab === "customers" && (
+              <CustomerManagement user={currentUser} onNotify={notify} />
+            )}
+            {activeTab === "reports" && (
+              <SalesReports onNotify={notify} />
+            )}
+            {(activeTab === "orders" || activeTab === "fulfillment") && (
+              <OperationsFulfillment onNotify={notify} />
+            )}
+            {(activeTab === "warehouses" || activeTab.startsWith("warehouses/")) && (
+              <WarehouseManagement
+                user={currentUser}
+                onNotify={notify}
+                initialWarehouseId={
+                  activeTab.startsWith("warehouses/")
+                    ? parseInt(activeTab.split("/")[1], 10) || null
+                    : null
+                }
+              />
+            )}
+            {activeTab === "inventory" && (
+              <InventoryManagement user={currentUser} onNotify={notify} />
+            )}
+            {activeTab === "billing" && (
+              <FinanceBilling onNotify={notify} />
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
       {/* Global Header */}
       <header className="header">
         <div className="header-inner">
-          {/* 1. Brand */}
-          <div
-            className="header-brand"
-            onClick={() => {
-              if (currentUser) {
-                navigateTo(ROLE_DEFAULT_TAB[currentUser.role] || "portal");
-              } else {
-                goToLogin();
-              }
-            }}
-            style={{ cursor: "pointer" }}
-          >
-            <Activity size={22} color="var(--primary)" style={{ flexShrink: 0 }} />
-            <span className="brand-text">
-              DealFlow<span style={{ color: "var(--primary)" }}>360</span>
-            </span>
-            <span className="brand-badge">Intelligent Ops</span>
+          {/* 1. Brand & Sidebar Toggle */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            {currentUser && currentUser.role !== "CUSTOMER" && !isShowingRegister && !isShowingLogin && (
+              <button
+                type="button"
+                className="sidebar-toggle-btn"
+                onClick={() => {
+                  if (window.innerWidth <= 768) {
+                    setMobileSidebarOpen(!mobileSidebarOpen);
+                  } else {
+                    setSidebarCollapsed(!sidebarCollapsed);
+                  }
+                }}
+                title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                style={{ padding: "0.3rem 0.45rem", cursor: "pointer" }}
+              >
+                <Menu size={16} />
+              </button>
+            )}
+            <div
+              className="header-brand"
+              onClick={() => {
+                if (currentUser) {
+                  navigateTo(ROLE_DEFAULT_TAB[currentUser.role] || "portal");
+                } else {
+                  goToLogin();
+                }
+              }}
+              style={{ cursor: "pointer" }}
+            >
+              <Activity size={22} color="var(--primary)" style={{ flexShrink: 0 }} />
+              <span className="brand-text">
+                DealFlow<span style={{ color: "var(--primary)" }}>360</span>
+              </span>
+              <span className="brand-badge">Intelligent Ops</span>
+            </div>
           </div>
 
-          {/* 2. Main Navigation */}
-          {currentUser && !isShowingRegister && !isShowingLogin && (
+          {/* 2. Customer Navigation (Only for CUSTOMER role) */}
+          {currentUser && currentUser.role === "CUSTOMER" && !isShowingRegister && !isShowingLogin && (
             <nav className="header-nav" aria-label="Main Navigation">
               {roleNavItems.map((item) => {
                 const Icon = item.icon;
@@ -548,295 +886,62 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="main-content">
-        {isShowingRegister ? (
-          /* Create Account Page (Routes: /register, /signup) */
-          <div className="card" style={{ maxWidth: "440px", margin: "3.5rem auto", padding: "2.25rem 2rem" }}>
-            <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
-              <Building2 size={36} color="var(--primary)" style={{ margin: "0 auto 0.5rem auto" }} />
-              <h2 style={{ fontSize: "1.45rem", fontWeight: 800, color: "var(--text-primary)" }}>
-                Create your DealFlow360 account
-              </h2>
-              <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", marginTop: "0.35rem" }}>
-                Register for a customer account to track quotations, orders, and fulfillment.
-              </p>
-            </div>
-
-            <form onSubmit={handleSignupSubmit}>
-              <div className="form-group">
-                <label className="form-label">Full Name</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. Jane Doe"
-                  value={signupFullName}
-                  onChange={(e) => setSignupFullName(e.target.value)}
-                  autoComplete="name"
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Email Address</label>
-                <input
-                  type="email"
-                  className="form-input"
-                  placeholder="name@company.com"
-                  value={signupEmail}
-                  onChange={(e) => setSignupEmail(e.target.value)}
-                  autoComplete="email"
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Password</label>
-                <input
-                  type="password"
-                  className="form-input"
-                  placeholder="••••••••"
-                  value={signupPassword}
-                  onChange={(e) => setSignupPassword(e.target.value)}
-                  autoComplete="new-password"
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Confirm Password</label>
-                <input
-                  type="password"
-                  className="form-input"
-                  placeholder="••••••••"
-                  value={signupConfirmPassword}
-                  onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                  autoComplete="new-password"
-                />
-              </div>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                style={{ width: "100%", marginTop: "0.75rem" }}
-                disabled={authSubmitting}
-              >
-                {authSubmitting ? "Creating Account..." : "Create Account"}
-              </button>
-            </form>
-
-            <div
-              style={{
-                marginTop: "1.75rem",
-                paddingTop: "1.25rem",
-                borderTop: "1px solid var(--border-subtle)",
-                textAlign: "center",
-                fontSize: "0.9rem",
-                color: "var(--text-secondary)",
-              }}
-            >
-              Already have an account?{" "}
-              <a
-                href="/login"
-                onClick={(e) => {
-                  e.preventDefault();
-                  goToLogin();
-                }}
-                style={{
-                  color: "var(--primary)",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  textDecoration: "underline",
-                }}
-              >
-                Back to Login
-              </a>
-            </div>
-          </div>
-        ) : !currentUser ? (
-          /* Sign In Page (Routes: /login, /) */
-          <div className="card" style={{ maxWidth: "440px", margin: "3.5rem auto", padding: "2.25rem 2rem" }}>
-            <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
-              <Activity size={36} color="var(--primary)" style={{ margin: "0 auto 0.5rem auto" }} />
-              <h2 style={{ fontSize: "1.45rem", fontWeight: 800, color: "var(--text-primary)" }}>
-                Sign In to DealFlow360
-              </h2>
-              <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", marginTop: "0.35rem" }}>
-                Enter your email and password to access your authorized workspace.
-              </p>
-            </div>
-
-            <form onSubmit={handleLoginSubmit}>
-              <div className="form-group">
-                <label className="form-label">Email Address</label>
-                <input
-                  type="email"
-                  className="form-input"
-                  placeholder="name@company.com"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  autoComplete="email"
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Password</label>
-                <input
-                  type="password"
-                  className="form-input"
-                  placeholder="••••••••"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-              </div>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                style={{ width: "100%", marginTop: "0.75rem" }}
-                disabled={authSubmitting}
-              >
-                {authSubmitting ? "Signing In..." : "Sign In"}
-              </button>
-            </form>
-
-            <div
-              style={{
-                marginTop: "1.75rem",
-                paddingTop: "1.25rem",
-                borderTop: "1px solid var(--border-subtle)",
-                textAlign: "center",
-                fontSize: "0.9rem",
-                color: "var(--text-secondary)",
-              }}
-            >
-              Don't have an account?{" "}
-              <a
-                href="/register"
-                onClick={(e) => {
-                  e.preventDefault();
-                  goToRegister();
-                }}
-                style={{
-                  color: "var(--primary)",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  textDecoration: "underline",
-                }}
-              >
-                Create Account
-              </a>
-            </div>
-          </div>
-        ) : !isAuthorized ? (
-          /* Route Protection: Access Restricted View */
-          <div
-            className="card"
-            style={{
-              maxWidth: "560px",
-              margin: "4rem auto",
-              textAlign: "center",
-              padding: "3.5rem 2rem",
-            }}
+      {/* Main Content Area: Left Sidebar for Internal Users, Top Nav for Customers */}
+      {currentUser && currentUser.role !== "CUSTOMER" && !isShowingRegister && !isShowingLogin ? (
+        <div className="internal-layout">
+          {/* Left Sidebar */}
+          <aside
+            className={`internal-sidebar ${sidebarCollapsed ? "collapsed" : ""} ${mobileSidebarOpen ? "mobile-open" : ""}`}
+            aria-label="Sidebar Navigation"
           >
-            <ShieldAlert size={52} color="var(--status-high)" style={{ marginBottom: "1rem" }} />
-            <h2
-              style={{
-                fontSize: "1.5rem",
-                fontWeight: 800,
-                marginBottom: "0.5rem",
-                color: "var(--text-primary)",
-              }}
-            >
-              Access Restricted
-            </h2>
-            <p
-              style={{
-                color: "var(--text-secondary)",
-                fontSize: "0.95rem",
-                marginBottom: "1.75rem",
-                lineHeight: 1.5,
-              }}
-            >
-              You don't have permission to access this page. Your role (<strong>{currentUser.role}</strong>) is not authorized for <code>/{activeTab}</code>.
-            </p>
-            <button
-              className="btn btn-primary"
-              onClick={() => navigateTo(ROLE_DEFAULT_TAB[currentUser.role] || "portal")}
-            >
-              Back to Dashboard
-            </button>
-          </div>
-        ) : (
-          /* Authorized Component Rendering */
-          <div>
-            {currentUser.role === "CUSTOMER" ? (
-              <CustomerPortal
-                user={currentUser}
-                onNotify={notify}
-                activeSubTab={
-                  activeTab === "my-quotes" || activeTab === "quotes"
-                    ? "quotes"
-                    : activeTab === "orders"
-                    ? "orders"
-                    : activeTab === "billing"
-                    ? "billing"
-                    : activeTab === "company" || activeTab === "account"
-                    ? "profile"
-                    : "quotes"
-                }
-                onTabChange={(subTab) => {
-                  const subTabToRoute = {
-                    quotes: "my-quotes",
-                    orders: "orders",
-                    billing: "billing",
-                    profile: "company",
-                  };
-                  navigateTo(subTabToRoute[subTab] || "portal");
-                }}
-              />
-            ) : (
-              <>
-                {activeTab === "portal" && (
-                  <CustomerPortal user={currentUser} onNotify={notify} />
-                )}
-                {activeTab === "quotations" && (
-                  <QuotationWorkflow
-                    user={currentUser}
-                    onNotify={notify}
-                    onInspectDeal={() => navigateTo("deal-health")}
-                  />
-                )}
-                {activeTab === "approvals" && (
-                  <ApprovalQueue user={currentUser} onNotify={notify} />
-                )}
-                {activeTab === "deal-health" && (
-                  <DealHealthDashboard
-                    onInspectNegotiation={() => navigateTo("negotiations")}
-                    onNotify={notify}
-                  />
-                )}
-                {activeTab === "negotiations" && (
-                  <NegotiationsReview onNotify={notify} />
-                )}
-                {activeTab === "products" && (
-                  <ProductManagement user={currentUser} onNotify={notify} />
-                )}
-                {activeTab === "customers" && (
-                  <CustomerManagement user={currentUser} onNotify={notify} />
-                )}
-                {activeTab === "reports" && (
-                  <SalesReports onNotify={notify} />
-                )}
-                {(activeTab === "orders" || activeTab === "fulfillment") && (
-                  <OperationsFulfillment onNotify={notify} />
-                )}
-                {activeTab === "warehouses" && (
-                  <WarehouseManagement user={currentUser} onNotify={notify} />
-                )}
-                {activeTab === "inventory" && (
-                  <InventoryManagement user={currentUser} onNotify={notify} />
-                )}
-                {activeTab === "billing" && (
-                  <FinanceBilling onNotify={notify} />
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </main>
+            <div className="sidebar-header">
+              <span className="sidebar-role-label">{currentUser.role.replace("_", " ")} WORKSPACE</span>
+              <button
+                type="button"
+                className="sidebar-toggle-btn"
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+              >
+                {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+              </button>
+            </div>
+            <div className="sidebar-section-heading">MAIN MENU</div>
+            <nav className="sidebar-nav">
+              {roleNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive =
+                  activeTab === item.id ||
+                  (item.id === "warehouses" && activeTab.startsWith("warehouses/")) ||
+                  (item.id === "orders" && activeTab === "fulfillment");
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`sidebar-link ${isActive ? "active" : ""}`}
+                    onClick={() => {
+                      navigateTo(item.id);
+                      setMobileSidebarOpen(false);
+                    }}
+                    title={item.label}
+                  >
+                    <Icon size={17} className="sidebar-icon" />
+                    <span className="sidebar-text">{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+
+          {/* Internal Workspace Main Content */}
+          <main className="internal-main">
+            {renderMainBody()}
+          </main>
+        </div>
+      ) : (
+        <main className="main-content">
+          {renderMainBody()}
+        </main>
+      )}
 
       {/* Floating Notifications Toast Container */}
       <div className="toast-container">

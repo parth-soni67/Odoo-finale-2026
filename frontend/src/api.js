@@ -302,8 +302,44 @@ export const api = {
     });
   },
 
+  async activateWarehouse(id) {
+    return request(`/warehouses/${id}/activate`, {
+      method: "POST",
+    });
+  },
+
+  async deactivateWarehouse(id) {
+    return request(`/warehouses/${id}/deactivate`, {
+      method: "POST",
+    });
+  },
+
+  async deleteWarehouse(id) {
+    return request(`/warehouses/${id}`, {
+      method: "DELETE",
+    });
+  },
+
   async getWarehouseInventory(warehouseId) {
     return request(`/warehouses/${warehouseId}/inventory`);
+  },
+
+  async getWarehouseInventorySummary(warehouseId) {
+    return request(`/warehouses/${warehouseId}/inventory/summary`);
+  },
+
+  async restockWarehouseProduct(warehouseId, payload) {
+    return request(`/warehouses/${warehouseId}/inventory/restock`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async adjustWarehouseInventory(warehouseId, productId, payload) {
+    return request(`/warehouses/${warehouseId}/inventory/${productId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
   },
 
   // Inventory
@@ -314,6 +350,11 @@ export const api = {
 
   async getInventoryItem(id) {
     return request(`/inventory/${id}`);
+  },
+
+  async getLowStockInventory(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return request(`/inventory/low-stock${query ? `?${query}` : ""}`);
   },
 
   async addInventoryStock(payload) {
