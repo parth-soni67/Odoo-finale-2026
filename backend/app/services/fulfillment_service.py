@@ -24,6 +24,11 @@ class FulfillmentService:
             if line_type_val != "ONE_TIME":
                 continue # Only physical ONE_TIME items need inventory fulfillment
                 
+            prod = line.product or db.query(Product).filter(Product.id == line.product_id).first()
+            prod_fulfillment = getattr(prod, "fulfillment_type", "PHYSICAL") if prod else "PHYSICAL"
+            if str(prod_fulfillment).upper() in ("DIGITAL", "SERVICE"):
+                continue # Digital/service items never need warehouse allocation
+                
             requested_quantity = line.quantity
             allocations = []
             
@@ -70,6 +75,11 @@ class FulfillmentService:
             if line_type_val != "ONE_TIME":
                 continue
 
+            prod = line.product or db.query(Product).filter(Product.id == line.product_id).first()
+            prod_fulfillment = getattr(prod, "fulfillment_type", "PHYSICAL") if prod else "PHYSICAL"
+            if str(prod_fulfillment).upper() in ("DIGITAL", "SERVICE"):
+                continue # Digital/service items never need warehouse allocation
+
             has_physical_lines = True
 
             # Idempotency check: if line already has fulfillment splits, do not re-allocate or double deduct
@@ -99,6 +109,7 @@ class FulfillmentService:
                     break
                 allocate = min(inv.quantity_available, remaining)
                 inv.quantity_available -= allocate
+                inv.quantity_allocated = (inv.quantity_allocated or 0) + allocate
                 split = FulfillmentSplit(
                     order_line_id=line.id,
                     warehouse_id=inv.warehouse_id,
@@ -148,12 +159,36 @@ class FulfillmentService:
                 # If no allocations provided, use suggestion logic
                 suggestion = self.suggest_fulfillment(db, order_id)
                 allocations_input = suggestion["lines"]
+            else:
+                # Support flat splits format: [{"order_line_id": 1, "warehouse_id": 2, "quantity": 1}]
+                normalized = []
+                for item in allocations_input:
+                    if "warehouse_id" in item and "quantity" in item and ("allocations" not in item):
+                        order_line = None
+                        if "order_line_id" in item:
+                            order_line = next((l for l in order.lines if l.id == item["order_line_id"]), None)
+                        elif "product_id" in item:
+                            order_line = next((l for l in order.lines if l.product_id == item["product_id"]), None)
+                        elif len(order.lines) == 1:
+                            order_line = order.lines[0]
+                        if order_line:
+                            normalized.append({
+                                "product_id": order_line.product_id,
+                                "allocations": [{"warehouse_id": item["warehouse_id"], "quantity": item["quantity"]}]
+                            })
+                    else:
+                        normalized.append(item)
+                allocations_input = normalized
 
             for line_data in allocations_input:
                 product_id = line_data["product_id"]
                 # Find the corresponding order line
                 order_line = next((l for l in order.lines if l.product_id == product_id and getattr(l.line_type, "value", str(l.line_type)) == "ONE_TIME"), None)
                 if not order_line:
+                    continue
+
+                prod = order_line.product or db.query(Product).filter(Product.id == product_id).first()
+                if prod and str(getattr(prod, "fulfillment_type", "PHYSICAL")).upper() in ("DIGITAL", "SERVICE"):
                     continue
                     
                 allocations = line_data.get("allocations", [])
@@ -173,8 +208,9 @@ class FulfillmentService:
                             detail={"code": "INSUFFICIENT_INVENTORY", "message": f"Not enough inventory in warehouse {warehouse_id} for product {product_id}"}
                         )
                     
-                    # Reduce inventory
+                    # Reduce available and increase allocated inventory
                     inv.quantity_available -= quantity
+                    inv.quantity_allocated = (inv.quantity_allocated or 0) + quantity
                     
                     # Create FulfillmentSplit
                     split = FulfillmentSplit(

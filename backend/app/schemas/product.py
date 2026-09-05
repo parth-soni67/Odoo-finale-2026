@@ -28,6 +28,7 @@ class ProductBase(BaseModel):
     cost_price: float
     allowed_discount_percent: float = 0.0
     is_active: bool = True
+    fulfillment_type: str = "PHYSICAL"
 
     # Subscription / Service Entitlement
     subscription_enabled: bool = False
@@ -51,6 +52,7 @@ class ProductUpdate(BaseModel):
     cost_price: Optional[float] = None
     allowed_discount_percent: Optional[float] = None
     is_active: Optional[bool] = None
+    fulfillment_type: Optional[str] = None
 
     subscription_enabled: Optional[bool] = None
     subscription_name: Optional[str] = None

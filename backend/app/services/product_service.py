@@ -46,16 +46,8 @@ class ProductService:
                 detail={"code": "SKU_ALREADY_EXISTS", "message": f"Product with SKU '{product_in.sku}' already exists"}
             )
 
-        product = Product(
-            name=product_in.name,
-            sku=product_in.sku,
-            category_id=product_in.category_id,
-            description=product_in.description,
-            unit_price=product_in.unit_price,
-            cost_price=product_in.cost_price,
-            allowed_discount_percent=product_in.allowed_discount_percent,
-            is_active=product_in.is_active,
-        )
+        product_data = product_in.model_dump()
+        product = Product(**product_data)
         db.add(product)
         db.commit()
         db.refresh(product)

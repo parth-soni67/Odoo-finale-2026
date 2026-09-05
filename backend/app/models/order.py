@@ -75,6 +75,10 @@ class OrderLine(Base):
     def product_sku(self):
         return self.product.sku if self.product else None
 
+    @property
+    def fulfillment_type(self):
+        return getattr(self.product, "fulfillment_type", "PHYSICAL") if self.product else "PHYSICAL"
+
 
 class FulfillmentSplit(Base):
     __tablename__ = "fulfillment_splits"

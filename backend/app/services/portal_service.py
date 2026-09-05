@@ -174,6 +174,11 @@ class PortalService:
             "status": quote.status.value,
             "order_id": order.id,
             "order_number": order.order_number,
+            "order": {
+                "id": order.id,
+                "order_number": order.order_number,
+                "status": getattr(order.status, "value", str(order.status)),
+            },
             "message": "Quote accepted successfully and order created.",
         }
 

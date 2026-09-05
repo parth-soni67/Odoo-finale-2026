@@ -118,6 +118,7 @@ def seed_database(db: Session) -> None:
             "unit_price": 1200.0,
             "cost_price": 800.0,
             "allowed_discount_percent": 15.0,
+            "fulfillment_type": "PHYSICAL",
         },
         {
             "name": "DealFlow Enterprise Platform License",
@@ -127,6 +128,7 @@ def seed_database(db: Session) -> None:
             "unit_price": 5000.0,
             "cost_price": 500.0,
             "allowed_discount_percent": 25.0,
+            "fulfillment_type": "DIGITAL",
         },
         {
             "name": "On-site Deployment & Integration Package",
@@ -136,6 +138,7 @@ def seed_database(db: Session) -> None:
             "unit_price": 2500.0,
             "cost_price": 1500.0,
             "allowed_discount_percent": 10.0,
+            "fulfillment_type": "SERVICE",
         },
         {
             "name": "24/7 Mission-Critical SLA Support (Monthly)",
@@ -145,6 +148,7 @@ def seed_database(db: Session) -> None:
             "unit_price": 800.0,
             "cost_price": 200.0,
             "allowed_discount_percent": 20.0,
+            "fulfillment_type": "SERVICE",
         },
     ]
 
@@ -157,6 +161,8 @@ def seed_database(db: Session) -> None:
             db.commit()
             db.refresh(existing)
             print(f"Created product: {prod['name']} ({prod['sku']})")
+        else:
+            existing.fulfillment_type = prod.get("fulfillment_type", "PHYSICAL")
         prod_map[prod["sku"]] = existing
 
     # 5. Seed Warehouses
@@ -194,11 +200,18 @@ def seed_database(db: Session) -> None:
             Inventory.product_id == inv["product_id"]
         ).first()
         if not existing:
-            item = Inventory(**inv)
+            item = Inventory(
+                warehouse_id=inv["warehouse_id"],
+                product_id=inv["product_id"],
+                quantity_on_hand=inv["quantity_available"],
+                quantity_available=inv["quantity_available"],
+                quantity_allocated=0,
+            )
             db.add(item)
             print(f"Set inventory: Product {inv['product_id']} in Warehouse {inv['warehouse_id']} -> {inv['quantity_available']} units")
         else:
             existing.quantity_available = inv["quantity_available"]
+            existing.quantity_on_hand = existing.quantity_on_hand if existing.quantity_on_hand is not None else inv["quantity_available"]
 
     db.commit()
 

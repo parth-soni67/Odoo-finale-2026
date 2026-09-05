@@ -31,6 +31,7 @@ class OrderLineResponse(BaseModel):
     discount_percent: float
     line_total: float
     line_type: LineType
+    fulfillment_type: Optional[str] = "PHYSICAL"
 
     # Subscription / Service Entitlement Snapshot
     subscription_enabled: bool = False

@@ -46,6 +46,7 @@ def sync_db_schema(bind_engine=engine) -> None:
             ("validity_unit", "VARCHAR(50)"),
             ("billing_frequency", "VARCHAR(50) DEFAULT 'NONE'"),
             ("subscription_start_trigger", "VARCHAR(50) DEFAULT 'ORDER_ACTIVATION'"),
+            ("fulfillment_type", "VARCHAR(50) DEFAULT 'PHYSICAL'"),
         ],
         "quote_lines": [
             ("subscription_enabled", bool_def),
@@ -77,6 +78,15 @@ def sync_db_schema(bind_engine=engine) -> None:
             ("end_date", dt_type),
             ("next_billing_date", dt_type),
             ("created_at", dt_type),
+        ],
+        "warehouses": [
+            ("created_at", dt_type),
+            ("updated_at", dt_type),
+        ],
+        "inventories": [
+            ("quantity_on_hand", "INTEGER DEFAULT 0"),
+            ("quantity_allocated", "INTEGER DEFAULT 0"),
+            ("updated_at", dt_type),
         ],
     }
 

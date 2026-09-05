@@ -74,6 +74,7 @@ def submit_negotiation_request(
 
 
 @router.post("/quotes/{quote_id}/confirm")
+@router.post("/quotes/{quote_id}/accept")
 def confirm_quote(
     quote_id: int,
     db: Session = Depends(get_db),

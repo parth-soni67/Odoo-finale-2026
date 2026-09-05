@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -18,7 +18,8 @@ class OrderCreateRequest(BaseModel):
     quote_id: int
 
 class FulfillmentConfirmRequest(BaseModel):
-    allocations: List[Dict[str, Any]] = None
+    allocations: Optional[List[Dict[str, Any]]] = None
+    splits: Optional[List[Dict[str, Any]]] = None
 
 @router.post("", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
 def create_order(
@@ -62,6 +63,7 @@ def get_order(
 
     return order
 
+@router.get("/{order_id}/fulfillment/suggest")
 @router.post("/{order_id}/fulfillment/suggest")
 def suggest_fulfillment(
     order_id: int,
@@ -73,11 +75,13 @@ def suggest_fulfillment(
 @router.post("/{order_id}/fulfillment/confirm", response_model=OrderResponse)
 def confirm_fulfillment(
     order_id: int,
-    req: FulfillmentConfirmRequest = None,
+    req: Optional[FulfillmentConfirmRequest] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(Role.OPERATIONS, Role.ADMIN))
 ):
-    allocs = req.allocations if req else None
+    allocs = None
+    if req:
+        allocs = req.allocations if req.allocations is not None else req.splits
     return fulfillment_service.confirm_fulfillment(db, order_id, user_id=current_user.id, allocations_input=allocs)
 
 @router.post("/{order_id}/fulfillment/override", response_model=OrderResponse)

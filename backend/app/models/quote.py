@@ -72,6 +72,10 @@ class QuoteLine(Base):
     quote = relationship("Quote", back_populates="lines")
     product = relationship("Product", back_populates="quote_lines")
 
+    @property
+    def fulfillment_type(self):
+        return getattr(self.product, "fulfillment_type", "PHYSICAL") if self.product else "PHYSICAL"
+
 
 class Recommendation(Base):
     __tablename__ = "recommendations"

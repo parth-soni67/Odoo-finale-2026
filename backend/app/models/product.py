@@ -1,8 +1,15 @@
+import enum
 from sqlalchemy import Column, Integer, String, Float, Boolean, Text, ForeignKey, Enum, DateTime
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.customer import CustomerTier
+
+
+class FulfillmentType(str, enum.Enum):
+    PHYSICAL = "PHYSICAL"
+    DIGITAL = "DIGITAL"
+    SERVICE = "SERVICE"
 
 
 class ProductCategory(Base):
@@ -29,6 +36,7 @@ class Product(Base):
     cost_price = Column(Float, nullable=False, default=0.0)
     allowed_discount_percent = Column(Float, nullable=False, default=0.0)
     is_active = Column(Boolean, default=True, nullable=False)
+    fulfillment_type = Column(String(50), default="PHYSICAL", nullable=False)
 
     # Subscription / Service Entitlement
     subscription_enabled = Column(Boolean, default=False, nullable=False)
