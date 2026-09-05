@@ -200,7 +200,7 @@ def test_01_onetime_quote_to_order_visible(e2e_env):
     order = db.query(Order).filter(Order.id == res["order_id"]).first()
     assert order is not None
     assert order.customer_id == cust.id
-    assert order.status == OrderStatus.PENDING
+    assert order.status in (OrderStatus.PENDING, OrderStatus.PROCESSING)
     assert len(order.lines) == 1
     assert order.lines[0].product_id == hw.id
 

@@ -149,7 +149,13 @@ class PortalService:
 
         # Automatically create order if it does not already exist
         from app.services.order_service import order_service
-        order = order_service.create_order_from_quote(db, quote_id=quote.id, user_id=current_user.id, auto_activate_subscriptions=True)
+        order = order_service.create_order_from_quote(
+            db,
+            quote_id=quote.id,
+            user_id=current_user.id,
+            auto_activate_subscriptions=True,
+            auto_allocate_inventory=True,
+        )
 
         audit = AuditLog(
             user_id=current_user.id,

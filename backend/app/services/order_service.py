@@ -8,7 +8,12 @@ import uuid
 
 class OrderService:
     def create_order_from_quote(
-        self, db: Session, quote_id: int, user_id: int, auto_activate_subscriptions: bool = False
+        self,
+        db: Session,
+        quote_id: int,
+        user_id: int,
+        auto_activate_subscriptions: bool = False,
+        auto_allocate_inventory: bool = False,
     ) -> Order:
         quote = db.query(Quote).filter(Quote.id == quote_id).first()
         if not quote:
@@ -20,6 +25,9 @@ class OrderService:
         # check if order already exists (idempotent behavior)
         existing_order = db.query(Order).filter(Order.quote_id == quote_id).first()
         if existing_order:
+            if auto_allocate_inventory:
+                from app.services.fulfillment_service import fulfillment_service
+                existing_order = fulfillment_service.auto_allocate_order(db, existing_order, user_id=user_id)
             return existing_order
 
         order_number = f"ORD-{uuid.uuid4().hex[:8].upper()}"
@@ -168,6 +176,46 @@ class OrderService:
                     )
                     db.add(inv_audit)
             
+        # Generate one-time invoice for physical/one-time items if requested (e.g. customer accepted quote)
+        if auto_activate_subscriptions:
+            one_time_total = sum(
+                (line.line_total if line.line_total > 0 else (line.unit_price * line.quantity))
+                for line in order.lines
+                if getattr(line.line_type, "value", str(line.line_type)) == "ONE_TIME"
+            )
+            if one_time_total > 0:
+                existing_one_time_inv = (
+                    db.query(Invoice)
+                    .filter(Invoice.order_id == order.id, Invoice.billing_type == BillingType.ONE_TIME)
+                    .first()
+                )
+                if not existing_one_time_inv:
+                    one_time_invoice = Invoice(
+                        invoice_number=f"INV-ONE-{uuid.uuid4().hex[:8].upper()}",
+                        order_id=order.id,
+                        customer_id=order.customer_id,
+                        total_amount=round(float(one_time_total), 2),
+                        status=InvoiceStatus.ISSUED,
+                        billing_type=BillingType.ONE_TIME,
+                        due_date=now_utc + timedelta(days=30),
+                    )
+                    db.add(one_time_invoice)
+                    db.flush()
+
+                    inv_audit = AuditLog(
+                        user_id=user_id,
+                        entity_type="Invoice",
+                        entity_id=one_time_invoice.id,
+                        action="INVOICE_CREATED",
+                        new_value=f"One-time invoice generated for order {order.order_number}",
+                    )
+                    db.add(inv_audit)
+
+        # Automatically allocate inventory across active warehouses if requested
+        if auto_allocate_inventory:
+            from app.services.fulfillment_service import fulfillment_service
+            order = fulfillment_service.auto_allocate_order(db, order, user_id=user_id)
+
         audit = AuditLog(
             user_id=user_id,
             entity_type="Order",

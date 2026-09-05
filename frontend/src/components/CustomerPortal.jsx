@@ -58,7 +58,7 @@ function getCustomerOrderStatus(order) {
     return "PARTIALLY FULFILLED";
   }
   if (totalPhysicalQty > 0 && totalAllocatedQty >= totalPhysicalQty) {
-    return "FULFILLED";
+    return (status === "CONFIRMED" || status === "FULFILLED") ? "FULFILLED" : (status || "PROCESSING");
   }
   return status || "CONFIRMED";
 }
@@ -111,8 +111,11 @@ function getItemStatus(line, orderStatus) {
     (sum, sp) => sum + (sp.quantity_allocated || 0),
     0
   );
-  if (orderStatus === "FULFILLED" || (allocated >= line.quantity && line.quantity > 0)) {
+  if (orderStatus === "FULFILLED") {
     return { label: "Fulfilled", badge: "badge-healthy" };
+  }
+  if (allocated >= line.quantity && line.quantity > 0) {
+    return { label: "Allocated", badge: "badge-info" };
   }
   if (allocated > 0) {
     return { label: `Partially Fulfilled (${allocated}/${line.quantity})`, badge: "badge-medium" };
