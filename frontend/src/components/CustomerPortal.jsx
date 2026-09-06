@@ -205,6 +205,7 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
   const [billingLoading, setBillingLoading] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [invoiceModalLoading, setInvoiceModalLoading] = useState(false);
   const [expandedSubIds, setExpandedSubIds] = useState(new Set());
   const [subBillingHistories, setSubBillingHistories] = useState({});
   const [subHistoryLoading, setSubHistoryLoading] = useState({});
@@ -258,7 +259,7 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
       return next;
     });
 
-    if (!subBillingHistories[subId]) {
+    if (!subBillingHistories[subId] && !subHistoryLoading[subId]) {
       setSubHistoryLoading((prev) => ({ ...prev, [subId]: true }));
       try {
         const data = await api.getSubscriptionBillingHistory(subId);
@@ -272,7 +273,9 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
   }
 
   async function handleViewInvoice(invoiceId) {
+    if (!invoiceId) return;
     setInvoiceModalLoading(true);
+    setActionLoadingId(`view-${invoiceId}`);
     try {
       const inv = await api.getInvoice(invoiceId);
       setSelectedInvoice(inv);
@@ -280,6 +283,7 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
       if (onNotify) onNotify(err.message || "Failed to load invoice details", "error");
     } finally {
       setInvoiceModalLoading(false);
+      setActionLoadingId(null);
     }
   }
 
@@ -1567,9 +1571,24 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                       return (
                         <tr key={inv.id}>
                           <td>
-                            <strong style={{ color: "var(--primary)", fontFamily: "monospace", fontSize: "0.88rem" }}>
+                            <button
+                              type="button"
+                              onClick={() => handleViewInvoice(inv.id)}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                padding: 0,
+                                color: "var(--primary)",
+                                fontFamily: "monospace",
+                                fontSize: "0.88rem",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                textDecoration: "underline",
+                              }}
+                              title="Click to view invoice details"
+                            >
                               {inv.invoice_number}
-                            </strong>
+                            </button>
                           </td>
                           <td style={{ fontSize: "0.85rem", color: "var(--text-primary)", fontWeight: 500 }}>
                             {subName}
@@ -1594,9 +1613,10 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                                 className="btn btn-secondary btn-sm"
                                 title="View detailed invoice"
                                 onClick={() => handleViewInvoice(inv.id)}
+                                disabled={invoiceModalLoading}
                                 style={{ padding: "0.25rem 0.5rem", fontSize: "0.78rem" }}
                               >
-                                <Eye size={13} /> View
+                                <Eye size={13} /> {actionLoadingId === `view-${inv.id}` ? "Loading..." : "View"}
                               </button>
                               <button
                                 className="btn btn-secondary btn-sm"
