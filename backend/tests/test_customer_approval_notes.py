@@ -249,3 +249,118 @@ def test_negotiation_workflow_approval_notes(client: TestClient, db_session: Ses
     assert mgr_app is not None
     assert mgr_app["status"] == "APPROVED"
     assert mgr_app["notes"] == neg_note
+
+
+def test_reapproval_preserves_historical_comments(client: TestClient, db_session: Session):
+    """Re-approval cycle after negotiation preserves both initial and re-approval comments."""
+    rep_headers = get_auth_headers(client, "salesrep@dealflow360.internal")
+    mgr_headers = get_auth_headers(client, "salesmgr@dealflow360.internal")
+    cust_headers = get_auth_headers(client, "customer@acmecorp.com")
+
+    # 1. Create quote requiring approval
+    q_resp = client.post(
+        "/api/quotes",
+        json={
+            "customer_id": 1,
+            "lines": [
+                {
+                    "product_id": 1,
+                    "quantity": 5,
+                    "unit_price": 1200.0,
+                    "discount_percent": 18.0,
+                    "line_type": "ONE_TIME",
+                }
+            ],
+        },
+        headers=rep_headers,
+    )
+    quote_id = q_resp.json()["id"]
+
+    # 2. Initial manager approval with comment
+    initial_comment = "Initial approval based on volume commitment."
+    client.post(
+        f"/api/quotes/{quote_id}/approve",
+        json={"comments": initial_comment},
+        headers=mgr_headers,
+    )
+
+    # 3. Customer negotiates further (25% discount)
+    client.post(
+        f"/api/portal/quotes/{quote_id}/negotiate",
+        json={"requested_change": "overall_discount_percent", "proposed_value": "25.0"},
+        headers=cust_headers,
+    )
+
+    # 4. Manager re-approves with new comment
+    reapproval_comment = "Re-approved after customer negotiation for strategic relationship."
+    client.post(
+        f"/api/quotes/{quote_id}/approve",
+        json={"comments": reapproval_comment},
+        headers=mgr_headers,
+    )
+
+    # 5. Customer fetches quote: BOTH historical comments must be present in approval_history
+    portal_resp = client.get(f"/api/portal/quotes/{quote_id}", headers=cust_headers)
+    assert portal_resp.status_code == 200
+    data = portal_resp.json()
+    assert "approval_history" in data
+    history = data["approval_history"]
+
+    # Must contain both approval records
+    comments = [item["comment"] for item in history if item.get("comment")]
+    assert initial_comment in comments, "Initial approval comment was overwritten!"
+    assert reapproval_comment in comments, "Re-approval comment was not recorded!"
+
+    # If Finance approval was also triggered by the negotiation discount, resolve it
+    if data["status"] == "PENDING_APPROVAL":
+        fin_headers = get_auth_headers(client, "finance@dealflow360.internal")
+        fin_resp = client.post(
+            f"/api/quotes/{quote_id}/approve",
+            json={"comments": "Finance approved re-approval exception."},
+            headers=fin_headers,
+        )
+        assert fin_resp.status_code == 200
+
+    # 6. Customer confirms/accepts the quote: comments must survive acceptance
+    confirm_resp = client.post(f"/api/portal/quotes/{quote_id}/confirm", headers=cust_headers)
+    assert confirm_resp.status_code == 200
+
+    portal_post_accept = client.get(f"/api/portal/quotes/{quote_id}", headers=cust_headers)
+    assert portal_post_accept.status_code == 200
+    post_data = portal_post_accept.json()
+    post_comments = [item["comment"] for item in post_data["approval_history"] if item.get("comment")]
+    assert initial_comment in post_comments
+    assert reapproval_comment in post_comments
+
+
+def test_customer_cannot_modify_or_approve_quotes(client: TestClient, db_session: Session):
+    """Customer role is strictly forbidden from approving quotes or tampering with comments."""
+    cust_headers = get_auth_headers(client, "customer@acmecorp.com")
+    rep_headers = get_auth_headers(client, "salesrep@dealflow360.internal")
+
+    q_resp = client.post(
+        "/api/quotes",
+        json={
+            "customer_id": 1,
+            "lines": [
+                {
+                    "product_id": 1,
+                    "quantity": 2,
+                    "unit_price": 1200.0,
+                    "discount_percent": 18.0,
+                    "line_type": "ONE_TIME",
+                }
+            ],
+        },
+        headers=rep_headers,
+    )
+    quote_id = q_resp.json()["id"]
+
+    # Customer attempts to approve quote directly -> 403 Forbidden
+    resp = client.post(
+        f"/api/quotes/{quote_id}/approve",
+        json={"comments": "Customer self-approved discount."},
+        headers=cust_headers,
+    )
+    assert resp.status_code == 403
+

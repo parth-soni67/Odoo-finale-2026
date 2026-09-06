@@ -99,24 +99,32 @@ class PortalService:
                 "resolved_at": neg.resolved_at.isoformat() if neg.resolved_at else None,
             })
 
-        # Construct customer-safe approval & governance summary
+        # Construct customer-safe approval & governance summary and historical audit
+        approval_history = []
         approvals_data = []
-        sorted_approvals = sorted(
-            quote.approvals,
-            key=lambda a: 0 if getattr(a.approval_type, "value", str(a.approval_type)) == "MANAGER" else 1,
-        )
-        for app in sorted_approvals:
+        # Sort chronologically by id/created_at to preserve exact approval order
+        chrono_approvals = sorted(quote.approvals, key=lambda a: a.id or 0)
+        for app in chrono_approvals:
             app_type = getattr(app.approval_type, "value", str(app.approval_type))
             app_status = getattr(app.status, "value", str(app.status))
-            approvals_data.append({
+            approver_label = "Finance" if app_type == "FINANCE" else "Sales Manager"
+            timestamp = (app.resolved_at or app.created_at).isoformat() if (app.resolved_at or app.created_at) else None
+
+            history_item = {
                 "id": app.id,
-                "type": app_type,
+                "approver_type": approver_label,
                 "approval_type": app_type,
+                "type": app_type,
                 "status": app_status,
-                "notes": app.comments,
+                "comment": app.comments,
                 "comments": app.comments,
-                "resolved_at": app.resolved_at.isoformat() if app.resolved_at else None,
-            })
+                "notes": app.comments,
+                "approved_at": timestamp,
+                "resolved_at": timestamp,
+                "created_at": app.created_at.isoformat() if app.created_at else None,
+            }
+            approval_history.append(history_item)
+            approvals_data.append(history_item)
 
         approval_summary = {
             "status": quote.status.value,
@@ -144,6 +152,7 @@ class PortalService:
             "lines": lines_data,
             "negotiations": negotiations_data,
             "approval_summary": approval_summary,
+            "approval_history": approval_history,
             "approvals": approvals_data,
         }
 

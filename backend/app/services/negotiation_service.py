@@ -248,14 +248,12 @@ class NegotiationService:
                 .filter(
                     Approval.quote_id == quote.id,
                     Approval.approval_type == ApprovalType.MANAGER,
+                    Approval.status == ApprovalStatus.PENDING,
                 )
                 .first()
             )
             reason_msg = f"Customer requested discount of {proposed_val_str}% exceeds permissible governance maximum of {max_permissible:.1f}%"
             if mgr_app:
-                mgr_app.status = ApprovalStatus.PENDING
-                mgr_app.comments = None
-                mgr_app.resolved_at = None
                 mgr_app.reason = reason_msg
             else:
                 mgr_app = Approval(
@@ -287,14 +285,12 @@ class NegotiationService:
                     .filter(
                         Approval.quote_id == quote.id,
                         Approval.approval_type == ApprovalType.FINANCE,
+                        Approval.status == ApprovalStatus.PENDING,
                     )
                     .first()
                 )
                 fin_reason_msg = f"Finance review required: {'; '.join(fin_reasons)}"
                 if fin_app:
-                    fin_app.status = ApprovalStatus.PENDING
-                    fin_app.comments = None
-                    fin_app.resolved_at = None
                     fin_app.reason = fin_reason_msg
                 else:
                     fin_app = Approval(
@@ -420,21 +416,21 @@ class NegotiationService:
                 .filter(
                     Approval.quote_id == quote.id,
                     Approval.approval_type == ApprovalType.MANAGER,
+                    Approval.status == ApprovalStatus.PENDING,
                 )
                 .first()
             )
+            reapproval_reason = f"Re-approval required: Negotiation #{negotiation.id} approved ({negotiation.requested_change} -> {negotiation.proposed_value})"
             if mgr_app:
-                mgr_app.status = ApprovalStatus.PENDING
                 mgr_app.comments = comments or mgr_app.comments
-                mgr_app.resolved_at = None
-                mgr_app.reason = f"Re-approval required: Negotiation #{negotiation.id} approved ({negotiation.requested_change} -> {negotiation.proposed_value})"
+                mgr_app.reason = reapproval_reason
             else:
                 mgr_app = Approval(
                     quote_id=quote.id,
                     approval_type=ApprovalType.MANAGER,
                     status=ApprovalStatus.PENDING,
                     comments=comments,
-                    reason=f"Re-approval required: Negotiation #{negotiation.id} approved ({negotiation.requested_change} -> {negotiation.proposed_value})",
+                    reason=reapproval_reason,
                 )
                 db.add(mgr_app)
 

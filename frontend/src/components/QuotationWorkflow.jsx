@@ -1258,6 +1258,9 @@ export function QuotationWorkflow({ user, onNotify, onInspectDeal }) {
             <form onSubmit={handleDecisionSubmit}>
               <div className="form-group">
                 <label className="form-label">Review Comments (Optional)</label>
+                <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "-0.25rem", marginBottom: "0.4rem" }}>
+                  These comments will be visible to the customer in the quotation details.
+                </p>
                 <textarea
                   className="form-textarea"
                   rows={3}

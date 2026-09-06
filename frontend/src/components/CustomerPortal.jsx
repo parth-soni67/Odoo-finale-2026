@@ -37,6 +37,26 @@ function formatDate(dateVal) {
   }
 }
 
+function formatApprovalDate(dateVal) {
+  if (!dateVal) return null;
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return null;
+    const day = String(d.getDate()).padStart(2, "0");
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12;
+    hours = hours ? String(hours).padStart(2, "0") : "12";
+    return `${day} ${month} ${year}, ${hours}:${minutes} ${ampm}`;
+  } catch {
+    return null;
+  }
+}
+
 function formatNegotiationDisplay(neg) {
   const req = (neg.requested_change || "").toLowerCase();
   const isPercent = neg.field_type === "PERCENTAGE" || req.includes("discount") || req.includes("percent");
@@ -783,38 +803,33 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
               {/* Approval & Governance */}
               {(() => {
                 const rawApprovals =
-                  selectedQuote.approval_summary?.approvals ||
-                  selectedQuote.approvals ||
-                  [];
-                const mgrApp = rawApprovals.find(
-                  (a) => (a.type || a.approval_type) === "MANAGER"
-                );
-                const finApp = rawApprovals.find(
-                  (a) => (a.type || a.approval_type) === "FINANCE"
-                );
+                  (Array.isArray(selectedQuote.approval_history) && selectedQuote.approval_history.length > 0)
+                    ? selectedQuote.approval_history
+                    : (selectedQuote.approval_summary?.approvals || selectedQuote.approvals || []);
 
                 const itemsToDisplay = [];
 
-                if (mgrApp) {
-                  itemsToDisplay.push(mgrApp);
+                if (rawApprovals.length > 0) {
+                  itemsToDisplay.push(...rawApprovals);
                 } else if (
                   selectedQuote.status === "PENDING_APPROVAL" ||
                   selectedQuote.status === "APPROVED" ||
                   selectedQuote.status === "ACCEPTED"
                 ) {
                   itemsToDisplay.push({
-                    type: "MANAGER",
+                    id: "default-mgr",
+                    approver_type: "Sales Manager",
                     approval_type: "MANAGER",
+                    type: "MANAGER",
                     status:
                       selectedQuote.status === "PENDING_APPROVAL"
                         ? "PENDING"
                         : "APPROVED",
+                    comment: null,
+                    comments: null,
                     notes: null,
+                    approved_at: selectedQuote.status !== "PENDING_APPROVAL" ? (selectedQuote.updated_at || selectedQuote.created_at) : null,
                   });
-                }
-
-                if (finApp) {
-                  itemsToDisplay.push(finApp);
                 }
 
                 if (itemsToDisplay.length === 0) return null;
@@ -837,24 +852,26 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                       {itemsToDisplay.map((app, idx) => {
                         const appType = (app.type || app.approval_type || "").toUpperCase();
-                        const isFinance = appType === "FINANCE";
+                        const isFinance = appType === "FINANCE" || (app.approver_type && app.approver_type.toLowerCase().includes("finance"));
                         const roleLabel = isFinance ? "Finance" : "Sales Manager";
                         const isApproved = app.status === "APPROVED" || app.status === "ACCEPTED";
                         const isPending = app.status === "PENDING";
                         const isRejected = app.status === "REJECTED";
 
-                        const rawNote = app.notes || app.comments;
-                        const hasNote =
-                          typeof rawNote === "string" &&
-                          rawNote.trim() !== "" &&
-                          !["null", "undefined", "n/a", "none"].includes(rawNote.trim().toLowerCase());
+                        const rawComment = app.comment || app.comments || app.notes;
+                        const hasComment =
+                          typeof rawComment === "string" &&
+                          rawComment.trim() !== "" &&
+                          !["null", "undefined", "n/a", "none"].includes(rawComment.trim().toLowerCase());
+
+                        const formattedDate = formatApprovalDate(app.approved_at || app.resolved_at || (isApproved ? app.created_at : null));
 
                         return (
                           <div
                             key={app.id || idx}
                             className="approval-governance-item"
                             style={{
-                              padding: "0.9rem 1.1rem",
+                              padding: "1rem 1.25rem",
                               background: "var(--bg-surface-elevated)",
                               border: "1px solid var(--border-subtle)",
                               borderRadius: "var(--radius-md)",
@@ -870,14 +887,14 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                                 {isApproved ? (
                                   <>
                                     <CheckCircle2 size={16} color="var(--status-healthy)" />
-                                    <span style={{ fontWeight: 700, color: "var(--status-healthy-text)", fontSize: "0.92rem" }}>
+                                    <span style={{ fontWeight: 700, color: "var(--status-healthy-text)", fontSize: "0.95rem" }}>
                                       {roleLabel} Approved
                                     </span>
                                   </>
                                 ) : isRejected ? (
                                   <>
                                     <XCircle size={16} color="var(--status-high)" />
-                                    <span style={{ fontWeight: 700, color: "var(--status-high-text)", fontSize: "0.92rem" }}>
+                                    <span style={{ fontWeight: 700, color: "var(--status-high-text)", fontSize: "0.95rem" }}>
                                       {roleLabel} Rejected
                                     </span>
                                   </>
@@ -893,7 +910,7 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                                         boxSizing: "border-box",
                                       }}
                                     />
-                                    <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "0.92rem" }}>
+                                    <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "0.95rem" }}>
                                       {roleLabel} Approval
                                     </span>
                                   </>
@@ -908,41 +925,47 @@ export function CustomerPortal({ user, onNotify, activeSubTab = "quotes", onTabC
                                     : "badge-medium"
                                 }`}
                               >
-                                {isApproved ? "Approved" : isRejected ? "Rejected" : "Pending"}
+                                {isApproved ? "APPROVED" : isRejected ? "REJECTED" : "PENDING"}
                               </span>
                             </div>
 
-                            {/* Pending state */}
-                            {isPending && (
-                              <div
-                                style={{
-                                  marginTop: "0.35rem",
-                                  fontSize: "0.85rem",
-                                  color: "var(--text-muted)",
-                                  paddingLeft: "1.4rem",
-                                }}
-                              >
+                            {/* Date / Pending information */}
+                            {isPending ? (
+                              <div style={{ marginTop: "0.4rem", fontSize: "0.85rem", color: "var(--text-muted)" }}>
                                 Pending
                               </div>
-                            )}
-
-                            {/* Real Governance Note */}
-                            {hasNote && (
-                              <div
-                                style={{
-                                  marginTop: "0.6rem",
-                                  fontSize: "0.88rem",
-                                  color: "var(--text-secondary)",
-                                  lineHeight: 1.5,
-                                  background: "#FFFFFF",
-                                  border: "1px solid var(--border-subtle)",
-                                  borderRadius: "var(--radius-sm)",
-                                  padding: "0.6rem 0.85rem",
-                                }}
-                              >
-                                {rawNote.trim()}
+                            ) : formattedDate ? (
+                              <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                                <span style={{ fontWeight: 600 }}>Approved on:</span> {formattedDate}
                               </div>
-                            )}
+                            ) : null}
+
+                            {/* Review Comments */}
+                            <div style={{ marginTop: "0.75rem" }}>
+                              <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.3rem" }}>
+                                Review Comments
+                              </div>
+                              {hasComment ? (
+                                <div
+                                  style={{
+                                    fontSize: "0.88rem",
+                                    color: "var(--text-primary)",
+                                    lineHeight: 1.5,
+                                    background: "#FFFFFF",
+                                    border: "1px solid var(--border-subtle)",
+                                    borderRadius: "var(--radius-sm)",
+                                    padding: "0.6rem 0.85rem",
+                                    fontStyle: "italic",
+                                  }}
+                                >
+                                  &ldquo;{rawComment.trim()}&rdquo;
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+                                  No review comments provided.
+                                </div>
+                              )}
+                            </div>
                           </div>
                         );
                       })}

@@ -22,7 +22,10 @@ router = APIRouter(prefix="/quotes", tags=["quotes"])
 
 
 class ApprovalDecisionRequest(BaseModel):
+    action: Optional[str] = None
     comments: Optional[str] = None
+    comment: Optional[str] = None
+    notes: Optional[str] = None
 
 
 @router.post("", response_model=QuoteResponse, status_code=status.HTTP_201_CREATED)
@@ -107,7 +110,9 @@ def approve_quote(
     current_user: User = Depends(require_roles(Role.SALES_MANAGER, Role.FINANCE, Role.ADMIN)),
 ):
     """Approves a quote step with role-based routing (Sales Manager / Finance / Admin)."""
-    comments = decision_in.comments if decision_in else None
+    comments = None
+    if decision_in:
+        comments = decision_in.comments or decision_in.comment or decision_in.notes
     return approval_service.process_decision(
         db=db,
         quote_id=quote_id,
@@ -125,7 +130,9 @@ def reject_quote(
     current_user: User = Depends(require_roles(Role.SALES_MANAGER, Role.FINANCE, Role.ADMIN)),
 ):
     """Rejects a quote and transitions quote status to REJECTED."""
-    comments = decision_in.comments if decision_in else None
+    comments = None
+    if decision_in:
+        comments = decision_in.comments or decision_in.comment or decision_in.notes
     return approval_service.process_decision(
         db=db,
         quote_id=quote_id,

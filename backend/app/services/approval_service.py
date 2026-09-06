@@ -36,6 +36,7 @@ class ApprovalService:
                 .filter(
                     Approval.quote_id == quote.id,
                     Approval.approval_type == ApprovalType.MANAGER,
+                    Approval.status == ApprovalStatus.PENDING,
                 )
                 .first()
             )
@@ -56,6 +57,7 @@ class ApprovalService:
                 .filter(
                     Approval.quote_id == quote.id,
                     Approval.approval_type == ApprovalType.FINANCE,
+                    Approval.status == ApprovalStatus.PENDING,
                 )
                 .first()
             )
